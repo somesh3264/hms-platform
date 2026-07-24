@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Every tenant-scoped model carries a tenantId so application code and
+// row-level queries can enforce hospital/clinic data isolation.
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  patients      Patient[]
+  visits        Visit[]
+  prescriptions Prescription[]
+  inventoryItems InventoryItem[]
+  invoices      Invoice[]
+}
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  NURSE
+  PHARMACIST
+  RECEPTIONIST
+  BILLING
+}
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  email        String
+  passwordHash String
+  name         String
+  role         UserRole @default(RECEPTIONIST)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  visits        Visit[]        @relation("VisitProvider")
+  prescriptions Prescription[] @relation("PrescriptionPrescriber")
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNKNOWN
+}
+
+model Patient {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime
+  gender      Gender   @default(UNKNOWN)
+  email       String?
+  phone       String?
+  address     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  visits        Visit[]
+  prescriptions Prescription[]
+  invoices      Invoice[]
+
+  @@index([tenantId])
+}
+
+enum VisitStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Visit {
+  id         String      @id @default(cuid())
+  tenantId   String
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  patientId  String
+  patient    Patient     @relation(fields: [patientId], references: [id])
+  providerId String
+  provider   User        @relation("VisitProvider", fields: [providerId], references: [id])
+  status     VisitStatus @default(SCHEDULED)
+  reason     String?
+  scheduledAt DateTime
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  prescriptions Prescription[]
+  invoices      Invoice[]
+
+  @@index([tenantId])
+  @@index([patientId])
+}
+
+model Prescription {
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  visitId        String
+  visit          Visit    @relation(fields: [visitId], references: [id])
+  patientId      String
+  patient        Patient  @relation(fields: [patientId], references: [id])
+  prescriberId   String
+  prescriber     User     @relation("PrescriptionPrescriber", fields: [prescriberId], references: [id])
+  medicationName String
+  dosage         String
+  instructions   String?
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([patientId])
+}
+
+model InventoryItem {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  name          String
+  sku           String
+  quantity      Int      @default(0)
+  unit          String
+  reorderLevel  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+}
+
+model Invoice {
+  id        String        @id @default(cuid())
+  tenantId  String
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
+  patientId String
+  patient   Patient       @relation(fields: [patientId], references: [id])
+  visitId   String?
+  visit     Visit?        @relation(fields: [visitId], references: [id])
+  status    InvoiceStatus @default(DRAFT)
+  amountCents Int
+  currency  String        @default("USD")
+  issuedAt  DateTime?
+  paidAt    DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([tenantId])
+  @@index([patientId])
+}

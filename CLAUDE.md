@@ -21,14 +21,27 @@ doubt about a model's fields, that schema is authoritative, not the docs.
 
 **Current state**: early-stage scaffold. App Router skeleton, module folders,
 the Prisma schema, and two migrations (initial schema + Row-Level Security)
-exist; no business logic implemented yet. Node.js was not preinstalled in this
-environment — it was installed via nvm (`~/.nvm`, Node 20) and Docker is not
-installed, so neither migration has been run/verified against a live Postgres
-yet (the initial one was generated with `prisma migrate diff --from-empty`,
-schema-only; the RLS one is hand-written SQL, since Prisma has no declarative
-RLS support). Verify `node -v` / `docker ps` before assuming either is
-available, and run `prisma migrate deploy` against a real Postgres (e.g. via
-`docker compose up -d`) before trusting either migration is valid in practice.
+exist; no business logic implemented yet. Both migrations have been applied
+via `prisma migrate deploy` against a real local Postgres and verified —
+including that `hms_app` (no context set) sees zero rows, sees only its
+scoped hospital's rows once `withHospitalContext` sets the session variable,
+and gets a real Postgres error on a cross-tenant insert attempt; the `hms`
+superuser bypasses RLS entirely, confirming the app must never connect as it.
+
+Neither Docker nor a system Postgres install was available in this
+environment (no Homebrew either, and no passwordless sudo, so Homebrew itself
+couldn't be installed). Verification instead used Postgres.app's binaries
+directly, without installing anything system-wide: downloaded the DMG, copied
+`Postgres.app` into `~/Applications` (user-writable, no sudo), and ran
+`~/Applications/Postgres.app/Contents/Versions/16/bin/{initdb,pg_ctl}` against
+a data directory at `~/pg-data-hms` — bypassing the app's GUI entirely. If
+that Postgres instance isn't running, restart it with:
+`~/Applications/Postgres.app/Contents/Versions/16/bin/pg_ctl -D ~/pg-data-hms -l ~/pg-data-hms/logfile -o "-p 5432 -k /tmp" start`.
+This is a one-off local stand-in for `docker compose up -d`
+(`docker-compose.yml`/the README's Docker workflow is still what a real
+Docker-equipped environment should use) — verify `node -v` / `docker ps` /
+`pg_isready -h localhost -p 5432` before assuming any of these are available
+in a fresh environment rather than assuming this setup persists.
 
 ## Commands
 
@@ -108,9 +121,8 @@ Compound uniqueness scoped by hospital: `User` on `[hospitalId, email]`,
 The initial migration (`prisma/migrations/*_init/`) was generated via
 `prisma migrate diff --from-empty --to-schema-datamodel` rather than
 `prisma migrate dev`, because no live Postgres was reachable when it was
-authored — it has not been applied/verified against a real database yet.
-Run `prisma migrate deploy` (or `npm run prisma:migrate` once Postgres is up)
-before trusting it's schema-valid in practice.
+authored. It has since been applied via `prisma migrate deploy` and confirmed
+schema-valid (see "Current state" above).
 
 ### Row-Level Security (`prisma/migrations/*_add_row_level_security`)
 

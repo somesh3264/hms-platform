@@ -45,6 +45,48 @@ async function main() {
     ],
   });
 
+  const in15Days = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+  const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+  // Deliberately varied so low-stock (FR-6.6) and near-expiry (FR-6.9)
+  // scenarios are demonstrable without manual setup.
+  await prisma.medicine.createMany({
+    data: [
+      {
+        hospitalId: hospital.id,
+        name: 'Paracetamol 500mg',
+        stockQuantity: 500,
+        reorderLevel: 100,
+        unitPriceCents: 200,
+        expiryDate: nextYear,
+      },
+      {
+        hospitalId: hospital.id,
+        name: 'Amoxicillin 250mg',
+        stockQuantity: 20, // <= 30% of reorderLevel (100) -> low stock
+        reorderLevel: 100,
+        unitPriceCents: 1500,
+        expiryDate: nextYear,
+      },
+      {
+        hospitalId: hospital.id,
+        name: 'Cetirizine 10mg',
+        stockQuantity: 300,
+        reorderLevel: 50,
+        unitPriceCents: 300,
+        expiryDate: in15Days, // within the 30-day near-expiry window
+      },
+      {
+        hospitalId: hospital.id,
+        name: 'Cough Syrup 100ml',
+        stockQuantity: 200,
+        reorderLevel: 50,
+        unitPriceCents: 8000,
+        expiryDate: nextYear,
+      },
+    ],
+  });
+
   console.log(`Seeded Demo Hospital (${hospital.id}).`);
 }
 

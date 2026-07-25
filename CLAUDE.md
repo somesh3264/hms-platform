@@ -19,21 +19,32 @@ product/architecture docs this codebase implements. TRD Section 5 explicitly
 defers field-level schema detail to `prisma/schema.prisma` itself — when in
 doubt about a model's fields, that schema is authoritative, not the docs.
 
-**Current state**: early-stage. Schema, RLS, and the first three feature
+**Current state**: early-stage. Schema, RLS, and the first four feature
 modules — front desk registration (BRS FR-3.1–FR-3.6), doctor consultation
-(BRS FR-4.1–FR-4.5), and prescription digitization & routing (BRS
-FR-5.1–FR-5.6) — are implemented; other modules are still barrel placeholders.
-All migrations have been applied via `prisma migrate deploy`/`prisma migrate
-dev` against a real local Postgres and verified end to end (not just
-typechecked) — including that `hms_app` (no context set) sees zero rows, sees
-only its scoped hospital's rows once `withHospitalContext` sets the session
-variable, and gets a real Postgres error on a cross-tenant insert attempt; the
-`hms` superuser bypasses RLS entirely, confirming the app must never connect
-as it. Each feature module's flow was verified the same way: driven through
-the real Server Actions via the no-JS progressive-enhancement form POST path
+(BRS FR-4.1–FR-4.5), prescription digitization & routing (BRS FR-5.1–FR-5.6),
+and the in-house medical store / pharmacy (BRS FR-6.1–FR-6.10) — are
+implemented; other modules are still barrel placeholders. All migrations have
+been applied via `prisma migrate deploy`/`prisma migrate dev` against a real
+local Postgres and verified end to end (not just typechecked) — including
+that `hms_app` (no context set) sees zero rows, sees only its scoped
+hospital's rows once `withHospitalContext` sets the session variable, and
+gets a real Postgres error on a cross-tenant insert attempt; the `hms`
+superuser bypasses RLS entirely, confirming the app must never connect as it.
+Each feature module's flow was verified the same way: driven through the real
+Server Actions via the no-JS progressive-enhancement form POST path
 (including a real multipart file upload for prescriptions, round-tripped
-through `/api/uploads` and diffed byte-for-byte against the source file), not
-just unit-level calls.
+through `/api/uploads` and diffed byte-for-byte against the source file, and
+a stock oversell attempt confirmed to leave stock untouched), not just
+unit-level calls.
+
+**Operational note**: if a schema change stops taking effect at runtime
+(Prisma errors mentioning fields/relations that look wrong, or that
+contradict what `npx prisma studio`/`psql` shows), the long-running `next
+dev` process is almost certainly holding a stale `@prisma/client` — Next
+doesn't watch `node_modules` for changes, so `prisma generate`/`migrate dev`
+regenerating the client mid-session doesn't hot-reload it. Kill and restart
+`npm run dev` after any schema change; don't debug it as an application bug
+first.
 
 Neither Docker nor a system Postgres install was available in this
 environment (no Homebrew either, and no passwordless sudo, so Homebrew itself
@@ -68,7 +79,7 @@ npm run typecheck               # tsc --noEmit
 npm run prisma:generate          # regenerate Prisma client after schema changes
 npm run prisma:migrate            # create/apply a local migration
 npm run prisma:studio              # open Prisma Studio
-npm run prisma:seed                # seed a demo hospital + front-desk/doctor/pharmacist users (required for /front-desk, /doctor, /pharmacy)
+npm run prisma:seed                # seed a demo hospital + front-desk/doctor/pharmacist users + demo medicines
 ```
 
 No test runner is configured yet — there are no test files or test script in
@@ -87,20 +98,20 @@ hold real data-access functions (see the module sections below):
 - `users` — staff accounts, roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF), authentication — placeholder (no auth exists yet, see below)
 - `patients` — `searchPatients`, `registerPatient`, `updatePatientDemographics`, `generatePatientCode`, `getPatientHistory` (`Patient`)
 - `visits` — `createVisit`, `listWaitingQueue`, `listVisitsForDoctor`, `getVisitDetail`, `startConsultation`, `saveConsultationNotes`, `completeConsultation` (`Visit`)
-- `prescriptions` — `uploadPrescription`, `replacePrescription`, `listPharmacyQueue` (`Prescription`)
-- `inventory` — medical stock (`Medicine`; no DB-level uniqueness on name/batch, dedupe is app-level) — placeholder
+- `prescriptions` — `uploadPrescription`, `replacePrescription`, `listPharmacyQueue`, `getPrescriptionDetail` (`Prescription`)
+- `inventory` — `searchMedicines`, `listMedicines`, `listLowStockMedicines`, `dispenseItem`, `finalizeDispensing` (`Medicine`; no DB-level uniqueness on name/batch, dedupe is app-level)
 - `billing` — invoicing (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers) — placeholder
 - `shared` — cross-module utilities: Prisma client singleton (`prisma.ts`), `withHospitalContext`
   (`tenant-context.ts`), `recordAuditLog` (`audit-log.ts`), the local-disk file storage stand-in
   (`storage.ts`, see "Prescription digitization" below), and the temporary
   `getDevFrontDeskSession`/`getDevDoctorSession`/`getDevPharmacistSession` stubs (`dev-session.ts`, see below)
 
-Every data-access function in `patients`/`visits` takes a
-`Prisma.TransactionClient` (`tx`) as its first argument rather than importing
-`prisma` itself — callers open it via `withHospitalContext` so RLS scoping and
-the function's logic can't be pulled apart. Follow this pattern for new
-modules: no module-level function should import the `prisma` singleton
-directly for tenant-owned tables.
+Every data-access function in `patients`/`visits`/`prescriptions`/`inventory`
+takes a `Prisma.TransactionClient` (`tx`) as its first argument rather than
+importing `prisma` itself — callers open it via `withHospitalContext` so RLS
+scoping and the function's logic can't be pulled apart. Follow this pattern
+for new modules: no module-level function should import the `prisma`
+singleton directly for tenant-owned tables.
 
 `src/app` is the Next.js App Router entrypoint (`layout.tsx`, `page.tsx`,
 `globals.css`, plus feature routes like `front-desk/`, `doctor/`, `pharmacy/`,
@@ -133,7 +144,11 @@ Relations of note:
   uses `AuditLogActor`.
 - `BillLineItem` optionally references `Medicine` (nullable — service charges
   like consultation fees have no medicine) and optionally references the
-  `Prescription` it fulfils.
+  `Prescription` it fulfils. `billId` is also nullable: dispensing (FR-6.5,
+  see "In-house medical store / pharmacy" below) creates line items the
+  moment medicines are issued, before a Bill exists — the not-yet-built
+  billing module (BRS 3.7) attaches unbilled items (`billId IS NULL`) to a
+  real `Bill` later.
 - Money fields are integer cents (`unitPriceCents`, `totalCents`, etc.), not
   floats — preserve this convention for any new monetary field.
 
@@ -246,11 +261,9 @@ the patient's permanent record (FR-5.5) and `recordAuditLog` captures the
 change, only valid while the existing row is still `UPLOADED` (not already
 `DISPENSED` or `SUPERSEDED`).
 
-`/pharmacy` (`getDevPharmacistSession`, same dev-session caveats) is a
-**read-only** view proving the routing works — it exists to demonstrate FR-5.4,
-not to implement pharmacy dispensing. Selecting medicines, decrementing stock,
-and marking a prescription `DISPENSED` is the In-House Medical Store module
-(BRS 3.6) and is not built yet.
+`/pharmacy` (`getDevPharmacistSession`, same dev-session caveats) lists what's
+routed here (proving FR-5.4) and now also links to the dispensing screen for
+each — see "In-house medical store / pharmacy" below.
 
 **File storage is a local-disk stand-in for the TRD's real object storage**
 (S3-compatible, e.g. Cloudflare R2 — TRD Section 3). `src/shared/storage.ts`
@@ -261,6 +274,37 @@ file. That's acceptable only because it's local dev; real object storage must
 use short-lived signed URLs or bucket-scoped policies, and this route should
 be deleted (not hardened) once that's wired up, the same way the dev-session
 auth stubs should be deleted once real auth exists.
+
+### In-house medical store / pharmacy (`src/app/pharmacy`, `src/inventory`)
+
+Implements BRS FR-6.1–FR-6.10. `/pharmacy/[prescriptionId]` (FR-6.2: scan
+shown alongside patient/visit details) lets pharmacy staff search inventory
+(`searchMedicines`, FR-6.3) and dispense repeatedly, one medicine at a time
+(`dispenseItem`) — a prescription is an unstructured scanned image (BRS
+Section 2.6), so there's no structured "what was prescribed" list to dispense
+against automatically; staff read the scan and select matching medicines
+manually, same as in practice. `finalizeDispensing` closes out the
+prescription (status → `DISPENSED`, FR-6.10) once at least one item has been
+dispensed, mirroring `completeConsultation`'s gate one level down; both the
+UI (disabled button) and the function itself enforce this.
+
+`dispenseItem` decrements stock via an atomic conditional `UPDATE ...
+WHERE stock_quantity >= quantity RETURNING ...` (FR-6.5) in the same
+transaction as creating the `BillLineItem` — not a read-then-write, so
+concurrent dispensing can't oversell, and an insufficient-stock attempt
+leaves stock completely untouched rather than partially decrementing (verified
+directly). Price is snapshotted onto the line item at dispense time
+(`unitPriceCents`), so a later catalog price change can't retroactively alter
+what was already dispensed.
+
+Low-stock (`isLowStock`, FR-6.6/6.7) and near-expiry (`getExpiryStatus`,
+FR-6.9) are pure functions in `src/inventory/status.ts`, not stored flags —
+computed from `Medicine.stockQuantity`/`reorderLevel` and the hospital's (or
+medicine's override) `lowStockThresholdPercent`. FR-6.8 requires low-stock
+visibility to both pharmacy staff (`/pharmacy` and `/pharmacy/inventory`) and
+doctors "when prescribing" — `/doctor`'s queue page shows the same
+`listLowStockMedicines` list as a banner; keep both in sync if this logic
+changes.
 
 ### Local infra
 

@@ -59,8 +59,8 @@ The Next.js App Router entrypoint lives in `src/app`.
    npm run prisma:migrate
    ```
 
-5. Seed a demo hospital and front-desk/doctor/pharmacist users (needed since
-   staff authentication doesn't exist yet):
+5. Seed a demo hospital, front-desk/doctor/pharmacist users (needed since
+   staff authentication doesn't exist yet), and a few demo medicines:
 
    ```bash
    npm run prisma:seed
@@ -79,24 +79,24 @@ The app runs at [http://localhost:3000](http://localhost:3000).
 - Doctor consultation (per-doctor queue, patient history, start/complete
   consultation, save notes, upload/replace prescription scans):
   [http://localhost:3000/doctor](http://localhost:3000/doctor)
-- Pharmacy queue (read-only view of prescriptions routed for dispensing):
+- Pharmacy (worklist of routed prescriptions, dispensing, and inventory):
   [http://localhost:3000/pharmacy](http://localhost:3000/pharmacy)
 
 ## Useful scripts
 
-| Command                   | Description                                                 |
-| ------------------------- | ----------------------------------------------------------- |
-| `npm run dev`             | Start the Next.js dev server                                |
-| `npm run build`           | Build for production                                        |
-| `npm run start`           | Run the production build                                    |
-| `npm run lint`            | Run ESLint                                                  |
-| `npm run format`          | Format the codebase with Prettier                           |
-| `npm run format:check`    | Check formatting without writing changes                    |
-| `npm run typecheck`       | Run the TypeScript compiler in check mode                   |
-| `npm run prisma:generate` | Regenerate the Prisma client                                |
-| `npm run prisma:migrate`  | Create/apply a local migration                              |
-| `npm run prisma:studio`   | Open Prisma Studio                                          |
-| `npm run prisma:seed`     | Seed a demo hospital and front-desk/doctor/pharmacist users |
+| Command                   | Description                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `npm run dev`             | Start the Next.js dev server                                                 |
+| `npm run build`           | Build for production                                                         |
+| `npm run start`           | Run the production build                                                     |
+| `npm run lint`            | Run ESLint                                                                   |
+| `npm run format`          | Format the codebase with Prettier                                            |
+| `npm run format:check`    | Check formatting without writing changes                                     |
+| `npm run typecheck`       | Run the TypeScript compiler in check mode                                    |
+| `npm run prisma:generate` | Regenerate the Prisma client                                                 |
+| `npm run prisma:migrate`  | Create/apply a local migration                                               |
+| `npm run prisma:studio`   | Open Prisma Studio                                                           |
+| `npm run prisma:seed`     | Seed a demo hospital, front-desk/doctor/pharmacist users, and demo medicines |
 
 ## Database
 

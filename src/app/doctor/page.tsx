@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { listLowStockMedicines } from '@/inventory';
 import { withHospitalContext } from '@/shared';
 import { getDevDoctorSession } from '@/shared/dev-session';
 import { listVisitsForDoctor } from '@/visits';
@@ -7,9 +8,15 @@ import { listVisitsForDoctor } from '@/visits';
 export default async function DoctorQueuePage() {
   const { hospitalId, actorId: doctorId } = await getDevDoctorSession();
 
-  const visits = await withHospitalContext(hospitalId, (tx) =>
-    listVisitsForDoctor(tx, { hospitalId, doctorId, statuses: ['WAITING', 'IN_CONSULTATION'] }),
-  );
+  const { visits, lowStock } = await withHospitalContext(hospitalId, async (tx) => {
+    const visits = await listVisitsForDoctor(tx, {
+      hospitalId,
+      doctorId,
+      statuses: ['WAITING', 'IN_CONSULTATION'],
+    });
+    const lowStock = await listLowStockMedicines(tx, hospitalId);
+    return { visits, lowStock };
+  });
 
   const waiting = visits.filter((visit) => visit.status === 'WAITING');
   const inConsultation = visits.filter((visit) => visit.status === 'IN_CONSULTATION');
@@ -17,6 +24,15 @@ export default async function DoctorQueuePage() {
   return (
     <main>
       <h1>Doctor Queue</h1>
+
+      {/* FR-6.8: low-stock alerts must be visible to the doctor when
+          prescribing, not just pharmacy staff. */}
+      {lowStock.length > 0 && (
+        <p>
+          <strong>Low stock, prescribe alternatives if possible:</strong>{' '}
+          {lowStock.map((m) => m.name).join(', ')}
+        </p>
+      )}
 
       <section>
         <h2>In consultation</h2>

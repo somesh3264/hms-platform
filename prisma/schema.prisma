@@ -284,8 +284,12 @@ model BillLineItem {
   id         String   @id @default(cuid())
   hospitalId String   @map("hospital_id")
   hospital   Hospital @relation(fields: [hospitalId], references: [id])
-  billId     String   @map("bill_id")
-  bill       Bill     @relation(fields: [billId], references: [id])
+
+  // Nullable: dispensing (FR-6.5) creates a line item the moment medicines are
+  // issued, before a Bill exists -- the not-yet-built billing module (BRS 3.7)
+  // attaches unbilled items (billId IS NULL) to a real Bill later.
+  billId String? @map("bill_id")
+  bill   Bill?   @relation(fields: [billId], references: [id])
 
   // Nullable: only set for MEDICINE line items; service charges (e.g. consultation fee,
   // FR-7.3) have no medicine reference.

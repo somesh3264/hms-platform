@@ -3,7 +3,13 @@ import { withHospitalContext } from '@/shared';
 import { getDevDoctorSession } from '@/shared/dev-session';
 import { getVisitDetail } from '@/visits';
 
-import { saveNotesAction, startConsultationAction } from './actions';
+import {
+  completeConsultationAction,
+  replacePrescriptionAction,
+  saveNotesAction,
+  startConsultationAction,
+  uploadPrescriptionAction,
+} from './actions';
 
 export default async function VisitDetailPage({ params }: { params: { visitId: string } }) {
   const { hospitalId } = await getDevDoctorSession();
@@ -13,6 +19,8 @@ export default async function VisitDetailPage({ params }: { params: { visitId: s
     const history = await getPatientHistory(tx, { hospitalId, patientId: visit.patientId });
     return { visit, history };
   });
+
+  const hasUploadedPrescription = visit.prescriptions.some((p) => p.status === 'UPLOADED');
 
   return (
     <main>
@@ -64,18 +72,85 @@ export default async function VisitDetailPage({ params }: { params: { visitId: s
               </label>
               <button type="submit">Save notes</button>
             </form>
-            <p>
-              <em>
-                Complete consultation will be available once a prescription has been uploaded
-                against this visit (the Prescription Digitization module hasn&apos;t been built
-                yet).
-              </em>
-            </p>
+
+            {hasUploadedPrescription ? (
+              <form action={completeConsultationAction}>
+                <input type="hidden" name="visitId" value={visit.id} />
+                <button type="submit">Complete consultation</button>
+              </form>
+            ) : (
+              <p>
+                <em>Upload a prescription below before completing this consultation.</em>
+              </p>
+            )}
           </>
         )}
 
         {(visit.status === 'COMPLETED' || visit.status === 'CANCELLED') && (
           <p>Consultation notes: {visit.consultationNotes ?? '—'}</p>
+        )}
+      </section>
+
+      <section>
+        <h2>Prescriptions</h2>
+
+        {visit.status === 'IN_CONSULTATION' && (
+          <form action={uploadPrescriptionAction} encType="multipart/form-data">
+            <input type="hidden" name="visitId" value={visit.id} />
+            <label>
+              Scanned prescription (image or PDF)
+              <input
+                type="file"
+                name="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                required
+              />
+            </label>
+            <button type="submit">Upload</button>
+          </form>
+        )}
+
+        {visit.prescriptions.length === 0 ? (
+          <p>No prescriptions uploaded for this visit yet.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Uploaded</th>
+                <th>Status</th>
+                <th>File</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visit.prescriptions.map((prescription) => (
+                <tr key={prescription.id}>
+                  <td>{prescription.createdAt.toLocaleString()}</td>
+                  <td>{prescription.status}</td>
+                  <td>
+                    <a href={prescription.fileUrl} target="_blank" rel="noreferrer">
+                      View
+                    </a>
+                  </td>
+                  <td>
+                    {prescription.status === 'UPLOADED' && (
+                      <form action={replacePrescriptionAction} encType="multipart/form-data">
+                        <input type="hidden" name="visitId" value={visit.id} />
+                        <input type="hidden" name="prescriptionId" value={prescription.id} />
+                        <input
+                          type="file"
+                          name="file"
+                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          required
+                        />
+                        <button type="submit">Replace (wrong scan)</button>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
 

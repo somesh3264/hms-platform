@@ -59,8 +59,8 @@ The Next.js App Router entrypoint lives in `src/app`.
    npm run prisma:migrate
    ```
 
-5. Seed a demo hospital, front-desk user, and doctor (needed for the front
-   desk module, since staff authentication doesn't exist yet):
+5. Seed a demo hospital and front-desk/doctor/pharmacist users (needed since
+   staff authentication doesn't exist yet):
 
    ```bash
    npm run prisma:seed
@@ -76,24 +76,27 @@ The app runs at [http://localhost:3000](http://localhost:3000).
 
 - Front desk registration (search/register patients, create visits, view the
   waiting queue): [http://localhost:3000/front-desk](http://localhost:3000/front-desk)
-- Doctor consultation (per-doctor queue, patient history, start consultation,
-  save notes): [http://localhost:3000/doctor](http://localhost:3000/doctor)
+- Doctor consultation (per-doctor queue, patient history, start/complete
+  consultation, save notes, upload/replace prescription scans):
+  [http://localhost:3000/doctor](http://localhost:3000/doctor)
+- Pharmacy queue (read-only view of prescriptions routed for dispensing):
+  [http://localhost:3000/pharmacy](http://localhost:3000/pharmacy)
 
 ## Useful scripts
 
-| Command                   | Description                                       |
-| ------------------------- | ------------------------------------------------- |
-| `npm run dev`             | Start the Next.js dev server                      |
-| `npm run build`           | Build for production                              |
-| `npm run start`           | Run the production build                          |
-| `npm run lint`            | Run ESLint                                        |
-| `npm run format`          | Format the codebase with Prettier                 |
-| `npm run format:check`    | Check formatting without writing changes          |
-| `npm run typecheck`       | Run the TypeScript compiler in check mode         |
-| `npm run prisma:generate` | Regenerate the Prisma client                      |
-| `npm run prisma:migrate`  | Create/apply a local migration                    |
-| `npm run prisma:studio`   | Open Prisma Studio                                |
-| `npm run prisma:seed`     | Seed a demo hospital, front-desk user, and doctor |
+| Command                   | Description                                                 |
+| ------------------------- | ----------------------------------------------------------- |
+| `npm run dev`             | Start the Next.js dev server                                |
+| `npm run build`           | Build for production                                        |
+| `npm run start`           | Run the production build                                    |
+| `npm run lint`            | Run ESLint                                                  |
+| `npm run format`          | Format the codebase with Prettier                           |
+| `npm run format:check`    | Check formatting without writing changes                    |
+| `npm run typecheck`       | Run the TypeScript compiler in check mode                   |
+| `npm run prisma:generate` | Regenerate the Prisma client                                |
+| `npm run prisma:migrate`  | Create/apply a local migration                              |
+| `npm run prisma:studio`   | Open Prisma Studio                                          |
+| `npm run prisma:seed`     | Seed a demo hospital and front-desk/doctor/pharmacist users |
 
 ## Database
 
@@ -118,6 +121,13 @@ Both are set in `.env.example`. Application code that queries tenant-owned
 tables should use `withHospitalContext` from `@/shared`, which sets the
 Postgres session variable the RLS policies filter on, rather than the plain
 `prisma` client directly.
+
+### File storage
+
+Prescription scans are stored on local disk under `.data/` (gitignored) as a
+development stand-in for real S3-compatible object storage, and served back
+via `/api/uploads/...` — which has no access control and must not be used as
+a model for production file serving. See `src/shared/storage.ts`.
 
 To stop and remove the local database container:
 

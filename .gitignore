@@ -8,6 +8,9 @@
 # production
 /build
 
+# local dev-only file storage (src/shared/storage.ts)
+/.data
+
 # env files
 .env
 .env*.local

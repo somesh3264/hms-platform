@@ -20,20 +20,21 @@ defers field-level schema detail to `prisma/schema.prisma` itself — when in
 doubt about a model's fields, that schema is authoritative, not the docs.
 
 **Current state**: early-stage scaffold. App Router skeleton, module folders,
-and the Prisma schema/initial migration exist; no business logic implemented
-yet. Node.js was not preinstalled in this environment — it was installed via
-nvm (`~/.nvm`, Node 20) and Docker is not installed, so the initial migration
-was generated with `prisma migrate diff --from-empty` (schema-only diff)
-rather than `prisma migrate dev` against a live database. Verify `node -v` /
-`docker ps` before assuming either is available, and run `prisma migrate deploy`
-against a real Postgres (e.g. via `docker compose up -d`) to actually apply the
-migration in `prisma/migrations/`.
+the Prisma schema, and two migrations (initial schema + Row-Level Security)
+exist; no business logic implemented yet. Node.js was not preinstalled in this
+environment — it was installed via nvm (`~/.nvm`, Node 20) and Docker is not
+installed, so neither migration has been run/verified against a live Postgres
+yet (the initial one was generated with `prisma migrate diff --from-empty`,
+schema-only; the RLS one is hand-written SQL, since Prisma has no declarative
+RLS support). Verify `node -v` / `docker ps` before assuming either is
+available, and run `prisma migrate deploy` against a real Postgres (e.g. via
+`docker compose up -d`) before trusting either migration is valid in practice.
 
 ## Commands
 
 ```bash
 npm install              # install dependencies (package-lock.json not yet committed)
-cp .env.example .env     # set DATABASE_URL before running anything DB-related
+cp .env.example .env     # sets DATABASE_URL (admin) and APP_DATABASE_URL (RLS-restricted)
 docker compose up -d     # start local Postgres (postgres:16-alpine, db "hms")
 
 npm run dev               # Next.js dev server (http://localhost:3000)
@@ -90,6 +91,7 @@ All fields/tables use `@map`/`@@map` to snake_case DB column/table names
 when describing the RLS design. Keep new fields consistent with this mapping.
 
 Relations of note:
+
 - `Visit.doctor` and `Prescription.uploadedBy` both point at `User` via named
   relations (`VisitDoctor`, `PrescriptionUploadedBy`) since `User` has
   multiple distinct relations into these models. `AuditLog.actor` similarly
@@ -109,6 +111,39 @@ The initial migration (`prisma/migrations/*_init/`) was generated via
 authored — it has not been applied/verified against a real database yet.
 Run `prisma migrate deploy` (or `npm run prisma:migrate` once Postgres is up)
 before trusting it's schema-valid in practice.
+
+### Row-Level Security (`prisma/migrations/*_add_row_level_security`)
+
+Hand-written SQL (not schema-diffed — Prisma has no declarative RLS support)
+enabling and forcing RLS on every tenant-owned table, with a single `FOR ALL`
+policy per table comparing `hospital_id` to the Postgres session variable
+`app.current_hospital_id`. If that session variable is ever unset (e.g. a
+code path forgets to set it), the comparison evaluates to NULL and the policy
+fails closed — no rows visible or writable — rather than exposing everything.
+
+This requires two distinct database roles, both set in `.env.example`:
+
+- `DATABASE_URL` — elevated/admin role Prisma Migrate runs DDL as (superuser
+  locally, matching the official postgres Docker image's `POSTGRES_USER`
+  behavior).
+- `APP_DATABASE_URL` — the restricted `hms_app` role (provisioned by the RLS
+  migration itself) the _running app_ connects as. This split exists because
+  RLS does not apply to Postgres superusers or (without `FORCE ROW LEVEL
+SECURITY`) table owners — connecting the app with the admin role would make
+  the policies silently inert.
+
+`src/shared/prisma.ts` points the app's `PrismaClient` at `APP_DATABASE_URL`
+(falling back to `DATABASE_URL` if unset, purely so `npm run dev` doesn't
+break before it's configured — that fallback silently bypasses RLS, so don't
+rely on it past initial setup).
+
+Any query against a tenant-owned table must go through
+`withHospitalContext(hospitalId, fn)` (`src/shared/tenant-context.ts`, exported
+from `@/shared`), which opens a transaction and sets
+`app.current_hospital_id` via `set_config(..., true)` (parameterized, not
+string-interpolated) before running `fn`. Using the plain `prisma` client
+directly for tenant-owned tables will hit the fail-closed RLS default and
+return/write nothing.
 
 The Prisma client is accessed via the singleton in `src/shared/prisma.ts`
 (reused across hot reloads in dev to avoid exhausting the Postgres connection

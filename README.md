@@ -8,16 +8,16 @@ tenant, and all clinical and operational data is scoped to a `hospitalId`.
 
 Application code is organized by domain under `src/`:
 
-| Module          | Responsibility                                   |
-| --------------- | ------------------------------------------------- |
-| `tenants`       | Hospital/clinic organizations and their config    |
-| `users`         | Staff accounts, roles, and authentication          |
-| `patients`      | Patient records and demographics                   |
-| `visits`        | Patient visits and encounters                      |
-| `prescriptions` | Prescriptions issued during visits                 |
-| `inventory`     | Medical inventory and stock management              |
-| `billing`       | Invoicing and billing                               |
-| `shared`        | Cross-module utilities (e.g. the Prisma client)     |
+| Module          | Responsibility                                  |
+| --------------- | ----------------------------------------------- |
+| `tenants`       | Hospital/clinic organizations and their config  |
+| `users`         | Staff accounts, roles, and authentication       |
+| `patients`      | Patient records and demographics                |
+| `visits`        | Patient visits and encounters                   |
+| `prescriptions` | Prescriptions issued during visits              |
+| `inventory`     | Medical inventory and stock management          |
+| `billing`       | Invoicing and billing                           |
+| `shared`        | Cross-module utilities (e.g. the Prisma client) |
 
 The Next.js App Router entrypoint lives in `src/app`.
 
@@ -69,18 +69,18 @@ The app runs at [http://localhost:3000](http://localhost:3000).
 
 ## Useful scripts
 
-| Command                  | Description                              |
+| Command                   | Description                               |
 | ------------------------- | ----------------------------------------- |
-| `npm run dev`              | Start the Next.js dev server              |
-| `npm run build`            | Build for production                      |
-| `npm run start`            | Run the production build                  |
-| `npm run lint`             | Run ESLint                                |
-| `npm run format`           | Format the codebase with Prettier         |
-| `npm run format:check`     | Check formatting without writing changes  |
-| `npm run typecheck`        | Run the TypeScript compiler in check mode |
-| `npm run prisma:generate`  | Regenerate the Prisma client              |
-| `npm run prisma:migrate`   | Create/apply a local migration            |
-| `npm run prisma:studio`    | Open Prisma Studio                        |
+| `npm run dev`             | Start the Next.js dev server              |
+| `npm run build`           | Build for production                      |
+| `npm run start`           | Run the production build                  |
+| `npm run lint`            | Run ESLint                                |
+| `npm run format`          | Format the codebase with Prettier         |
+| `npm run format:check`    | Check formatting without writing changes  |
+| `npm run typecheck`       | Run the TypeScript compiler in check mode |
+| `npm run prisma:generate` | Regenerate the Prisma client              |
+| `npm run prisma:migrate`  | Create/apply a local migration            |
+| `npm run prisma:studio`   | Open Prisma Studio                        |
 
 ## Database
 
@@ -88,6 +88,23 @@ The Prisma schema is at `prisma/schema.prisma`. It defines `Hospital`, `User`,
 `Patient`, `Visit`, `Prescription`, `Medicine`, `Bill`, `BillLineItem`, and
 `AuditLog` models, each (other than `Hospital` itself) scoped by `hospitalId`
 to enforce data isolation between hospitals.
+
+### Row-Level Security
+
+Tenant isolation is enforced twice: application-layer `hospitalId` filtering,
+plus PostgreSQL Row-Level Security policies as a second, database-enforced
+line of defence (`prisma/migrations/*_add_row_level_security`). This requires
+two separate database roles/connection strings:
+
+- `DATABASE_URL` — elevated/admin role used by Prisma Migrate to run DDL.
+- `APP_DATABASE_URL` — restricted, non-superuser role the running app connects
+  as, which the RLS policies actually apply to. RLS does not restrict Postgres
+  superusers, so the app must not connect using `DATABASE_URL`'s role.
+
+Both are set in `.env.example`. Application code that queries tenant-owned
+tables should use `withHospitalContext` from `@/shared`, which sets the
+Postgres session variable the RLS policies filter on, rather than the plain
+`prisma` client directly.
 
 To stop and remove the local database container:
 

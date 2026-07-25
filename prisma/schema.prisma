@@ -9,7 +9,10 @@ datasource db {
 
 // Every tenant-owned table carries hospital_id directly (not only reachable via
 // a join) so PostgreSQL Row-Level Security policies can filter on it uniformly,
-// per TRD Section 2.3 / Section 8.
+// per TRD Section 2.3 / Section 8. The policies themselves are hand-written SQL
+// (Prisma has no declarative RLS support) -- see
+// prisma/migrations/*_add_row_level_security/migration.sql, and
+// src/shared/tenant-context.ts for how the app satisfies them at query time.
 
 model Hospital {
   id           String         @id @default(cuid())

@@ -95,7 +95,7 @@ export default async function VisitDetailPage({ params }: { params: { visitId: s
         <h2>Prescriptions</h2>
 
         {visit.status === 'IN_CONSULTATION' && (
-          <form action={uploadPrescriptionAction} encType="multipart/form-data">
+          <form action={uploadPrescriptionAction}>
             <input type="hidden" name="visitId" value={visit.id} />
             <label>
               Scanned prescription (image or PDF)
@@ -134,7 +134,7 @@ export default async function VisitDetailPage({ params }: { params: { visitId: s
                   </td>
                   <td>
                     {prescription.status === 'UPLOADED' && (
-                      <form action={replacePrescriptionAction} encType="multipart/form-data">
+                      <form action={replacePrescriptionAction}>
                         <input type="hidden" name="visitId" value={visit.id} />
                         <input type="hidden" name="prescriptionId" value={prescription.id} />
                         <input

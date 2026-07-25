@@ -19,19 +19,21 @@ product/architecture docs this codebase implements. TRD Section 5 explicitly
 defers field-level schema detail to `prisma/schema.prisma` itself — when in
 doubt about a model's fields, that schema is authoritative, not the docs.
 
-**Current state**: early-stage. Schema, RLS, and the first feature module
-(front desk registration — BRS FR-3.1 through FR-3.6, see "Front desk
-registration" below) are implemented; other modules are still barrel
-placeholders. All three migrations have been applied via `prisma migrate
-deploy`/`prisma migrate dev` against a real local Postgres and verified end
-to end (not just typechecked) — including that `hms_app` (no context set)
-sees zero rows, sees only its scoped hospital's rows once
-`withHospitalContext` sets the session variable, and gets a real Postgres
-error on a cross-tenant insert attempt; the `hms` superuser bypasses RLS
-entirely, confirming the app must never connect as it. The front-desk flow
-(register → search → create visit → queue) was verified the same way: driven
-through the real Server Actions via the no-JS progressive-enhancement form
-POST path, not just unit-level calls.
+**Current state**: early-stage. Schema, RLS, and the first two feature modules
+— front desk registration (BRS FR-3.1–FR-3.6) and doctor consultation (BRS
+FR-4.1–FR-4.5) — are implemented; other modules are still barrel placeholders.
+All migrations have been applied via `prisma migrate deploy`/`prisma migrate
+dev` against a real local Postgres and verified end to end (not just
+typechecked) — including that `hms_app` (no context set) sees zero rows, sees
+only its scoped hospital's rows once `withHospitalContext` sets the session
+variable, and gets a real Postgres error on a cross-tenant insert attempt; the
+`hms` superuser bypasses RLS entirely, confirming the app must never connect
+as it. Both feature modules' flows were verified the same way: driven through
+the real Server Actions via the no-JS progressive-enhancement form POST path,
+not just unit-level calls (front desk: register → search → create visit →
+queue; doctor: open queue → start consultation → save notes, plus a direct
+check that `completeConsultation` rejects without a prescription and succeeds
+once one exists).
 
 Neither Docker nor a system Postgres install was available in this
 environment (no Homebrew either, and no passwordless sudo, so Homebrew itself
@@ -79,18 +81,19 @@ chosen and wired into `package.json` first.
 
 Code is organized by domain, one top-level folder per module. Most are still
 barrel `index.ts` placeholders; `patients` and `visits` now hold real
-data-access functions (see "Front desk registration" below):
+data-access functions (see "Front desk registration" and "Doctor
+consultation" below):
 
 - `tenants` — hospital onboarding/branding/config (maps to the `Hospital` model) — placeholder
 - `users` — staff accounts, roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF), authentication — placeholder (no auth exists yet, see below)
-- `patients` — `searchPatients`, `registerPatient`, `updatePatientDemographics`, `generatePatientCode` (`Patient`)
-- `visits` — `createVisit`, `listWaitingQueue` (`Visit`)
+- `patients` — `searchPatients`, `registerPatient`, `updatePatientDemographics`, `generatePatientCode`, `getPatientHistory` (`Patient`)
+- `visits` — `createVisit`, `listWaitingQueue`, `listVisitsForDoctor`, `getVisitDetail`, `startConsultation`, `saveConsultationNotes`, `completeConsultation` (`Visit`)
 - `prescriptions` — scanned prescriptions uploaded during a visit (`Prescription`) — placeholder
 - `inventory` — medical stock (`Medicine`; no DB-level uniqueness on name/batch, dedupe is app-level) — placeholder
 - `billing` — invoicing (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers) — placeholder
 - `shared` — cross-module utilities: Prisma client singleton (`prisma.ts`), `withHospitalContext`
   (`tenant-context.ts`), `recordAuditLog` (`audit-log.ts`), and the temporary
-  `getDevFrontDeskSession` stub (`dev-session.ts`, see below)
+  `getDevFrontDeskSession`/`getDevDoctorSession` stubs (`dev-session.ts`, see below)
 
 Every data-access function in `patients`/`visits` takes a
 `Prisma.TransactionClient` (`tx`) as its first argument rather than importing
@@ -100,9 +103,9 @@ modules: no module-level function should import the `prisma` singleton
 directly for tenant-owned tables.
 
 `src/app` is the Next.js App Router entrypoint (`layout.tsx`, `page.tsx`,
-`globals.css`, plus feature routes like `front-desk/`) — kept separate from
-the domain modules above; routes call into the domain modules rather than
-querying Prisma directly.
+`globals.css`, plus feature routes like `front-desk/` and `doctor/`) — kept
+separate from the domain modules above; routes call into the domain modules
+rather than querying Prisma directly.
 
 Path alias `@/*` maps to `./src/*` (see `tsconfig.json`).
 
@@ -204,6 +207,30 @@ the first `Hospital` and its first `FRONT_DESK` user, seeded by
 this route, or `getDevFrontDeskSession` throws. Every call site using it must
 be revisited once real auth lands; don't extend this pattern to new routes
 without flagging it the same way.
+
+### Doctor consultation (`src/app/doctor`, `src/visits`, `src/patients`)
+
+Implements BRS FR-4.1–FR-4.5: the doctor's queue for the day
+(`listVisitsForDoctor`, waiting + in-consultation so a doctor can resume one
+they left mid-visit), the visit detail screen aggregating patient
+demographics and full visit/prescription history (`getVisitDetail` +
+`getPatientHistory`), starting a consultation (`startConsultation`: WAITING →
+IN_CONSULTATION only), and saving free-text consultation notes
+(`saveConsultationNotes`, only while IN_CONSULTATION). Uses
+`getDevDoctorSession()` (same `dev-session.ts` stub, same caveats as above).
+
+**`completeConsultation` is implemented but intentionally not wired to any
+UI.** FR-4.5 requires a consultation only be completable once a prescription
+has been uploaded against the visit, so the function checks for a
+`Prescription` row (`hospitalId` + `visitId`) before allowing
+IN_CONSULTATION → COMPLETED. Prescription upload (BRS Module 3.5) doesn't
+exist yet, so any "Complete consultation" button right now could never
+succeed — the visit detail page shows explanatory text instead. This was
+verified directly against the database (rejects with zero prescriptions,
+succeeds once one is inserted) rather than left untested just because it has
+no UI path yet. Wire it up (and remove the explanatory text) once
+prescription upload is built — don't add a bypass/override to make it usable
+sooner.
 
 ### Local infra
 

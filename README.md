@@ -72,9 +72,12 @@ The Next.js App Router entrypoint lives in `src/app`.
    npm run dev
    ```
 
-The app runs at [http://localhost:3000](http://localhost:3000). Front desk
-registration (search/register patients, create visits, view the waiting
-queue) is at [http://localhost:3000/front-desk](http://localhost:3000/front-desk).
+The app runs at [http://localhost:3000](http://localhost:3000).
+
+- Front desk registration (search/register patients, create visits, view the
+  waiting queue): [http://localhost:3000/front-desk](http://localhost:3000/front-desk)
+- Doctor consultation (per-doctor queue, patient history, start consultation,
+  save notes): [http://localhost:3000/doctor](http://localhost:3000/doctor)
 
 ## Useful scripts
 

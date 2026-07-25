@@ -10,8 +10,8 @@ is onboarded as a `Hospital`, and all clinical/operational data is scoped by
 `hospitalId` — data isolation between hospitals must be enforced in every query,
 not just at the schema level. The production design also relies on PostgreSQL
 Row-Level Security as a second line of defense beneath application-layer checks
-(see `docs/HMS_Technical_Requirements_Document.md` Section 2.3/8) — RLS policies
-are not yet implemented in this repo.
+(see `docs/HMS_Technical_Requirements_Document.md` Section 2.3/8) — implemented,
+see "Row-Level Security" below.
 
 `docs/HMS_Business_Requirement_Specification.md` (BRS) and
 `docs/HMS_Technical_Requirements_Document.md` (TRD) are the source-of-truth
@@ -19,14 +19,19 @@ product/architecture docs this codebase implements. TRD Section 5 explicitly
 defers field-level schema detail to `prisma/schema.prisma` itself — when in
 doubt about a model's fields, that schema is authoritative, not the docs.
 
-**Current state**: early-stage scaffold. App Router skeleton, module folders,
-the Prisma schema, and two migrations (initial schema + Row-Level Security)
-exist; no business logic implemented yet. Both migrations have been applied
-via `prisma migrate deploy` against a real local Postgres and verified —
-including that `hms_app` (no context set) sees zero rows, sees only its
-scoped hospital's rows once `withHospitalContext` sets the session variable,
-and gets a real Postgres error on a cross-tenant insert attempt; the `hms`
-superuser bypasses RLS entirely, confirming the app must never connect as it.
+**Current state**: early-stage. Schema, RLS, and the first feature module
+(front desk registration — BRS FR-3.1 through FR-3.6, see "Front desk
+registration" below) are implemented; other modules are still barrel
+placeholders. All three migrations have been applied via `prisma migrate
+deploy`/`prisma migrate dev` against a real local Postgres and verified end
+to end (not just typechecked) — including that `hms_app` (no context set)
+sees zero rows, sees only its scoped hospital's rows once
+`withHospitalContext` sets the session variable, and gets a real Postgres
+error on a cross-tenant insert attempt; the `hms` superuser bypasses RLS
+entirely, confirming the app must never connect as it. The front-desk flow
+(register → search → create visit → queue) was verified the same way: driven
+through the real Server Actions via the no-JS progressive-enhancement form
+POST path, not just unit-level calls.
 
 Neither Docker nor a system Postgres install was available in this
 environment (no Homebrew either, and no passwordless sudo, so Homebrew itself
@@ -61,6 +66,7 @@ npm run typecheck               # tsc --noEmit
 npm run prisma:generate          # regenerate Prisma client after schema changes
 npm run prisma:migrate            # create/apply a local migration
 npm run prisma:studio              # open Prisma Studio
+npm run prisma:seed                # seed a demo hospital + front-desk user + doctor (required for /front-desk)
 ```
 
 No test runner is configured yet — there are no test files or test script in
@@ -71,20 +77,32 @@ chosen and wired into `package.json` first.
 
 ### Module layout (`src/`)
 
-Code is organized by domain, one top-level folder per module, each currently a
-barrel `index.ts` placeholder:
+Code is organized by domain, one top-level folder per module. Most are still
+barrel `index.ts` placeholders; `patients` and `visits` now hold real
+data-access functions (see "Front desk registration" below):
 
-- `tenants` — hospital onboarding/branding/config (maps to the `Hospital` model)
-- `users` — staff accounts, roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF), authentication
-- `patients` — patient records and demographics (`Patient`)
-- `visits` — patient visits/encounters, assigned to a doctor (`Visit`)
-- `prescriptions` — scanned prescriptions uploaded during a visit (`Prescription`)
-- `inventory` — medical stock (`Medicine`; no DB-level uniqueness on name/batch, dedupe is app-level)
-- `billing` — invoicing (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers)
-- `shared` — cross-module utilities; currently just the Prisma client singleton (`src/shared/prisma.ts`)
+- `tenants` — hospital onboarding/branding/config (maps to the `Hospital` model) — placeholder
+- `users` — staff accounts, roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF), authentication — placeholder (no auth exists yet, see below)
+- `patients` — `searchPatients`, `registerPatient`, `updatePatientDemographics`, `generatePatientCode` (`Patient`)
+- `visits` — `createVisit`, `listWaitingQueue` (`Visit`)
+- `prescriptions` — scanned prescriptions uploaded during a visit (`Prescription`) — placeholder
+- `inventory` — medical stock (`Medicine`; no DB-level uniqueness on name/batch, dedupe is app-level) — placeholder
+- `billing` — invoicing (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers) — placeholder
+- `shared` — cross-module utilities: Prisma client singleton (`prisma.ts`), `withHospitalContext`
+  (`tenant-context.ts`), `recordAuditLog` (`audit-log.ts`), and the temporary
+  `getDevFrontDeskSession` stub (`dev-session.ts`, see below)
+
+Every data-access function in `patients`/`visits` takes a
+`Prisma.TransactionClient` (`tx`) as its first argument rather than importing
+`prisma` itself — callers open it via `withHospitalContext` so RLS scoping and
+the function's logic can't be pulled apart. Follow this pattern for new
+modules: no module-level function should import the `prisma` singleton
+directly for tenant-owned tables.
 
 `src/app` is the Next.js App Router entrypoint (`layout.tsx`, `page.tsx`,
-`globals.css`) — kept separate from the domain modules above.
+`globals.css`, plus feature routes like `front-desk/`) — kept separate from
+the domain modules above; routes call into the domain modules rather than
+querying Prisma directly.
 
 Path alias `@/*` maps to `./src/*` (see `tsconfig.json`).
 
@@ -161,6 +179,31 @@ The Prisma client is accessed via the singleton in `src/shared/prisma.ts`
 (reused across hot reloads in dev to avoid exhausting the Postgres connection
 pool) — import `prisma` from `@/shared` rather than instantiating `PrismaClient`
 directly.
+
+### Front desk registration (`src/app/front-desk`, `src/patients`, `src/visits`)
+
+Implements BRS FR-3.1–FR-3.6: search patients (`searchPatients`), register a
+new one with an auto-generated per-hospital ID (`registerPatient` +
+`generatePatientCode`), update demographics (`updatePatientDemographics`),
+create a visit assigned to a doctor (`createVisit`), and view the waiting
+queue (`listWaitingQueue`). `page.tsx` is a Server Component; `actions.ts`
+holds the `'use server'` Server Actions it wires to plain HTML forms (no
+client components, no client-side JS needed).
+
+`generatePatientCode` (`src/patients/patient-code.ts`) increments
+`Hospital.patientCodeSeq` via an atomic `UPDATE ... RETURNING`, not a
+read-then-write, so concurrent registrations at the same hospital can't
+collide. Every write in this module also calls `recordAuditLog` in the same
+transaction (FR-2.5).
+
+**No authentication exists yet (FR-2.4 is unimplemented).**
+`src/shared/dev-session.ts`'s `getDevFrontDeskSession()` is a deliberate,
+clearly-marked stand-in: it resolves "the current hospital/actor" by querying
+the first `Hospital` and its first `FRONT_DESK` user, seeded by
+`prisma/seed.mjs` (`npm run prisma:seed`) — run that once before exercising
+this route, or `getDevFrontDeskSession` throws. Every call site using it must
+be revisited once real auth lands; don't extend this pattern to new routes
+without flagging it the same way.
 
 ### Local infra
 

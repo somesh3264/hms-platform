@@ -29,6 +29,11 @@ model Hospital {
   // Overridable per medicine via Medicine.lowStockThresholdPercent.
   lowStockThresholdPercent Int @default(30) @map("low_stock_threshold_percent")
 
+  // Monotonically incremented per hospital to derive Patient.patientCode
+  // (FR-3.3). Incremented via an atomic UPDATE ... RETURNING in the same
+  // transaction as patient creation -- see src/patients/patient-code.ts.
+  patientCodeSeq Int @default(0) @map("patient_code_seq")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

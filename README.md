@@ -59,28 +59,38 @@ The Next.js App Router entrypoint lives in `src/app`.
    npm run prisma:migrate
    ```
 
-5. Start the dev server:
+5. Seed a demo hospital, front-desk user, and doctor (needed for the front
+   desk module, since staff authentication doesn't exist yet):
+
+   ```bash
+   npm run prisma:seed
+   ```
+
+6. Start the dev server:
 
    ```bash
    npm run dev
    ```
 
-The app runs at [http://localhost:3000](http://localhost:3000).
+The app runs at [http://localhost:3000](http://localhost:3000). Front desk
+registration (search/register patients, create visits, view the waiting
+queue) is at [http://localhost:3000/front-desk](http://localhost:3000/front-desk).
 
 ## Useful scripts
 
-| Command                   | Description                               |
-| ------------------------- | ----------------------------------------- |
-| `npm run dev`             | Start the Next.js dev server              |
-| `npm run build`           | Build for production                      |
-| `npm run start`           | Run the production build                  |
-| `npm run lint`            | Run ESLint                                |
-| `npm run format`          | Format the codebase with Prettier         |
-| `npm run format:check`    | Check formatting without writing changes  |
-| `npm run typecheck`       | Run the TypeScript compiler in check mode |
-| `npm run prisma:generate` | Regenerate the Prisma client              |
-| `npm run prisma:migrate`  | Create/apply a local migration            |
-| `npm run prisma:studio`   | Open Prisma Studio                        |
+| Command                   | Description                                       |
+| ------------------------- | ------------------------------------------------- |
+| `npm run dev`             | Start the Next.js dev server                      |
+| `npm run build`           | Build for production                              |
+| `npm run start`           | Run the production build                          |
+| `npm run lint`            | Run ESLint                                        |
+| `npm run format`          | Format the codebase with Prettier                 |
+| `npm run format:check`    | Check formatting without writing changes          |
+| `npm run typecheck`       | Run the TypeScript compiler in check mode         |
+| `npm run prisma:generate` | Regenerate the Prisma client                      |
+| `npm run prisma:migrate`  | Create/apply a local migration                    |
+| `npm run prisma:studio`   | Open Prisma Studio                                |
+| `npm run prisma:seed`     | Seed a demo hospital, front-desk user, and doctor |
 
 ## Database
 

@@ -7,49 +7,78 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Every tenant-scoped model carries a tenantId so application code and
-// row-level queries can enforce hospital/clinic data isolation.
+// Every tenant-owned table carries hospital_id directly (not only reachable via
+// a join) so PostgreSQL Row-Level Security policies can filter on it uniformly,
+// per TRD Section 2.3 / Section 8.
 
-model Tenant {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Hospital {
+  id           String         @id @default(cuid())
+  name         String
+  logoUrl      String?        @map("logo_url")
+  address      String?
+  contactPhone String?        @map("contact_phone")
+  contactEmail String?        @map("contact_email")
+  gstin        String?
+  themeColor   String?        @map("theme_color")
+  status       HospitalStatus @default(ACTIVE)
+
+  // Default low-stock alert threshold (% of reorder level), FR-6.6/FR-6.7.
+  // Overridable per medicine via Medicine.lowStockThresholdPercent.
+  lowStockThresholdPercent Int @default(30) @map("low_stock_threshold_percent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   users         User[]
   patients      Patient[]
   visits        Visit[]
   prescriptions Prescription[]
-  inventoryItems InventoryItem[]
-  invoices      Invoice[]
+  medicines     Medicine[]
+  bills         Bill[]
+  billLineItems BillLineItem[]
+  auditLogs     AuditLog[]
+
+  @@map("hospitals")
+}
+
+enum HospitalStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@map("hospital_status")
 }
 
 enum UserRole {
-  ADMIN
+  SUPER_ADMIN
+  HOSPITAL_ADMIN
+  FRONT_DESK
   DOCTOR
-  NURSE
   PHARMACIST
-  RECEPTIONIST
-  BILLING
+  BILLING_STAFF
+
+  @@map("user_role")
 }
 
 model User {
   id           String   @id @default(cuid())
-  tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
-  email        String
-  passwordHash String
+  hospitalId   String   @map("hospital_id")
+  hospital     Hospital @relation(fields: [hospitalId], references: [id])
   name         String
-  role         UserRole @default(RECEPTIONIST)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  email        String
+  passwordHash String   @map("password_hash")
+  role         UserRole
+  department   String?
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  visits        Visit[]        @relation("VisitProvider")
-  prescriptions Prescription[] @relation("PrescriptionPrescriber")
+  visitsAsDoctor        Visit[]        @relation("VisitDoctor")
+  prescriptionsUploaded Prescription[] @relation("PrescriptionUploadedBy")
+  auditLogs             AuditLog[]     @relation("AuditLogActor")
 
-  @@unique([tenantId, email])
-  @@index([tenantId])
+  @@unique([hospitalId, email])
+  @@index([hospitalId])
+  @@map("users")
 }
 
 enum Gender {
@@ -57,115 +86,235 @@ enum Gender {
   FEMALE
   OTHER
   UNKNOWN
+
+  @@map("gender")
 }
 
 model Patient {
   id          String   @id @default(cuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  firstName   String
-  lastName    String
-  dateOfBirth DateTime
+  hospitalId  String   @map("hospital_id")
+  hospital    Hospital @relation(fields: [hospitalId], references: [id])
+  patientCode String   @map("patient_code")
+  firstName   String   @map("first_name")
+  lastName    String   @map("last_name")
+  dateOfBirth DateTime @map("date_of_birth")
   gender      Gender   @default(UNKNOWN)
-  email       String?
   phone       String?
+  email       String?
   address     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  // DPDP Act 2023 opt-in consent for digital delivery of bills/prescriptions (FR-10.3).
+  consentDigitalDelivery Boolean @default(false) @map("consent_digital_delivery")
+
+  medicalHistoryNotes String? @map("medical_history_notes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   visits        Visit[]
   prescriptions Prescription[]
-  invoices      Invoice[]
+  bills         Bill[]
 
-  @@index([tenantId])
+  @@unique([hospitalId, patientCode])
+  @@index([hospitalId, phone])
+  @@index([hospitalId])
+  @@map("patients")
 }
 
 enum VisitStatus {
-  SCHEDULED
-  IN_PROGRESS
+  WAITING
+  IN_CONSULTATION
   COMPLETED
   CANCELLED
+
+  @@map("visit_status")
 }
 
 model Visit {
   id         String      @id @default(cuid())
-  tenantId   String
-  tenant     Tenant      @relation(fields: [tenantId], references: [id])
-  patientId  String
+  hospitalId String      @map("hospital_id")
+  hospital   Hospital    @relation(fields: [hospitalId], references: [id])
+  patientId  String      @map("patient_id")
   patient    Patient     @relation(fields: [patientId], references: [id])
-  providerId String
-  provider   User        @relation("VisitProvider", fields: [providerId], references: [id])
-  status     VisitStatus @default(SCHEDULED)
-  reason     String?
-  scheduledAt DateTime
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  doctorId   String      @map("doctor_id")
+  doctor     User        @relation("VisitDoctor", fields: [doctorId], references: [id])
+  department String?
+  status     VisitStatus @default(WAITING)
+
+  // Free-text notes captured by the doctor alongside the scanned prescription (FR-4.4).
+  consultationNotes String? @map("consultation_notes")
+
+  visitDate DateTime @default(now()) @map("visit_date")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   prescriptions Prescription[]
-  invoices      Invoice[]
+  bills         Bill[]
 
-  @@index([tenantId])
-  @@index([patientId])
+  @@index([hospitalId, patientId])
+  @@index([hospitalId, doctorId])
+  @@map("visits")
+}
+
+enum PrescriptionStatus {
+  UPLOADED
+  DISPENSED
+  SUPERSEDED
+
+  @@map("prescription_status")
 }
 
 model Prescription {
-  id             String   @id @default(cuid())
-  tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  visitId        String
-  visit          Visit    @relation(fields: [visitId], references: [id])
-  patientId      String
-  patient        Patient  @relation(fields: [patientId], references: [id])
-  prescriberId   String
-  prescriber     User     @relation("PrescriptionPrescriber", fields: [prescriberId], references: [id])
-  medicationName String
-  dosage         String
-  instructions   String?
-  createdAt      DateTime @default(now())
+  id           String   @id @default(cuid())
+  hospitalId   String   @map("hospital_id")
+  hospital     Hospital @relation(fields: [hospitalId], references: [id])
+  visitId      String   @map("visit_id")
+  visit        Visit    @relation(fields: [visitId], references: [id])
+  patientId    String   @map("patient_id")
+  patient      Patient  @relation(fields: [patientId], references: [id])
+  uploadedById String   @map("uploaded_by_id")
+  uploadedBy   User     @relation("PrescriptionUploadedBy", fields: [uploadedById], references: [id])
 
-  @@index([tenantId])
-  @@index([patientId])
+  // Object-storage reference to the scanned image/PDF (FR-5.2/FR-5.5).
+  fileUrl  String  @map("file_url")
+  fileType String  @map("file_type")
+  notes    String?
+
+  status PrescriptionStatus @default(UPLOADED)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  billLineItems BillLineItem[]
+
+  @@index([hospitalId, visitId])
+  @@index([hospitalId, status])
+  @@map("prescriptions")
 }
 
-model InventoryItem {
-  id            String   @id @default(cuid())
-  tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  name          String
-  sku           String
-  quantity      Int      @default(0)
-  unit          String
-  reorderLevel  Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+model Medicine {
+  id              String    @id @default(cuid())
+  hospitalId      String    @map("hospital_id")
+  hospital        Hospital  @relation(fields: [hospitalId], references: [id])
+  name            String
+  saltComposition String?   @map("salt_composition")
+  batchNumber     String?   @map("batch_number")
+  expiryDate      DateTime? @map("expiry_date")
+  unitPriceCents  Int       @map("unit_price_cents")
+  stockQuantity   Int       @default(0) @map("stock_quantity")
+  reorderLevel    Int       @default(0) @map("reorder_level")
 
-  @@unique([tenantId, sku])
-  @@index([tenantId])
+  // Per-medicine override of Hospital.lowStockThresholdPercent (FR-6.7).
+  lowStockThresholdPercent Int? @map("low_stock_threshold_percent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  billLineItems BillLineItem[]
+
+  @@index([hospitalId, name])
+  @@index([hospitalId, expiryDate])
+  @@map("medicines")
 }
 
-enum InvoiceStatus {
-  DRAFT
-  ISSUED
+enum PaymentMethod {
+  UPI
+  CASH
+
+  @@map("payment_method")
+}
+
+enum PaymentStatus {
+  PENDING
   PAID
-  VOID
+
+  @@map("payment_status")
 }
 
-model Invoice {
-  id        String        @id @default(cuid())
-  tenantId  String
-  tenant    Tenant        @relation(fields: [tenantId], references: [id])
-  patientId String
-  patient   Patient       @relation(fields: [patientId], references: [id])
-  visitId   String?
-  visit     Visit?        @relation(fields: [visitId], references: [id])
-  status    InvoiceStatus @default(DRAFT)
-  amountCents Int
-  currency  String        @default("USD")
-  issuedAt  DateTime?
-  paidAt    DateTime?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+model Bill {
+  id         String   @id @default(cuid())
+  hospitalId String   @map("hospital_id")
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+  visitId    String   @map("visit_id")
+  visit      Visit    @relation(fields: [visitId], references: [id])
+  patientId  String   @map("patient_id")
+  patient    Patient  @relation(fields: [patientId], references: [id])
 
-  @@index([tenantId])
-  @@index([patientId])
+  billNumber String @map("bill_number")
+
+  subtotalCents Int @default(0) @map("subtotal_cents")
+  discountCents Int @default(0) @map("discount_cents")
+  taxCents      Int @default(0) @map("tax_cents")
+  totalCents    Int @default(0) @map("total_cents")
+
+  paymentMethod    PaymentMethod? @map("payment_method")
+  paymentStatus    PaymentStatus  @default(PENDING) @map("payment_status")
+  // UPI UTR / transaction reference, or a cash receipt note (FR-7.5).
+  paymentReference String?        @map("payment_reference")
+
+  issuedAt DateTime? @map("issued_at")
+  paidAt   DateTime? @map("paid_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  lineItems BillLineItem[]
+
+  @@unique([hospitalId, billNumber])
+  @@index([hospitalId, patientId])
+  @@map("bills")
+}
+
+enum BillLineItemType {
+  MEDICINE
+  SERVICE
+
+  @@map("bill_line_item_type")
+}
+
+model BillLineItem {
+  id         String   @id @default(cuid())
+  hospitalId String   @map("hospital_id")
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+  billId     String   @map("bill_id")
+  bill       Bill     @relation(fields: [billId], references: [id])
+
+  // Nullable: only set for MEDICINE line items; service charges (e.g. consultation fee,
+  // FR-7.3) have no medicine reference.
+  medicineId String?   @map("medicine_id")
+  medicine   Medicine? @relation(fields: [medicineId], references: [id])
+
+  // The prescription this dispensed medicine line item fulfils, if applicable.
+  prescriptionId String?       @map("prescription_id")
+  prescription   Prescription? @relation(fields: [prescriptionId], references: [id])
+
+  itemType       BillLineItemType @map("item_type")
+  description    String
+  quantity       Int              @default(1)
+  unitPriceCents Int              @map("unit_price_cents")
+  lineTotalCents Int              @map("line_total_cents")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([hospitalId, billId])
+  @@map("bill_line_items")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  hospitalId String   @map("hospital_id")
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+  actorId    String   @map("actor_id")
+  actor      User     @relation("AuditLogActor", fields: [actorId], references: [id])
+
+  action     String
+  entityType String @map("entity_type")
+  entityId   String @map("entity_id")
+  metadata   Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([hospitalId, entityType, entityId])
+  @@index([hospitalId, createdAt])
+  @@map("audit_logs")
 }

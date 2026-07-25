@@ -2,7 +2,7 @@
 
 A multi-tenant hospital management system built with Next.js 14 (App Router),
 TypeScript, and Prisma/PostgreSQL. Each hospital or clinic is onboarded as a
-tenant, and all clinical and operational data is scoped to a `tenantId`.
+tenant, and all clinical and operational data is scoped to a `hospitalId`.
 
 ## Modules
 
@@ -84,9 +84,10 @@ The app runs at [http://localhost:3000](http://localhost:3000).
 
 ## Database
 
-The Prisma schema is at `prisma/schema.prisma`. It defines `Tenant`, `User`,
-`Patient`, `Visit`, `Prescription`, `InventoryItem`, and `Invoice` models,
-each scoped by `tenantId` to enforce data isolation between hospitals/clinics.
+The Prisma schema is at `prisma/schema.prisma`. It defines `Hospital`, `User`,
+`Patient`, `Visit`, `Prescription`, `Medicine`, `Bill`, `BillLineItem`, and
+`AuditLog` models, each (other than `Hospital` itself) scoped by `hospitalId`
+to enforce data isolation between hospitals.
 
 To stop and remove the local database container:
 

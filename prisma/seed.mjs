@@ -1,7 +1,8 @@
-// Seeds a demo hospital with a front-desk user, a doctor, and a pharmacist,
-// so the front-desk/doctor/pharmacy modules (and src/shared/dev-session.ts,
-// its temporary stand-in for real auth) have something to resolve against
-// locally. Not meant to represent production data.
+// Seeds a demo hospital with a front-desk user, a doctor, a pharmacist, and
+// billing staff, so the front-desk/doctor/pharmacy/billing modules (and
+// src/shared/dev-session.ts, its temporary stand-in for real auth) have
+// something to resolve against locally. Not meant to represent production
+// data.
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -14,7 +15,12 @@ async function main() {
   }
 
   const hospital = await prisma.hospital.create({
-    data: { name: 'Demo Hospital', status: 'ACTIVE' },
+    data: {
+      name: 'Demo Hospital',
+      status: 'ACTIVE',
+      address: '12 MG Road, Demo City, IN 560001',
+      gstin: '29ABCDE1234F1Z5',
+    },
   });
 
   // No auth module exists yet (FR-2.4) -- these are not real password
@@ -41,6 +47,13 @@ async function main() {
         email: 'pharmacist@demo.hospital',
         passwordHash: 'seed-placeholder-not-a-real-hash',
         role: 'PHARMACIST',
+      },
+      {
+        hospitalId: hospital.id,
+        name: 'Sunita Iyer',
+        email: 'billing@demo.hospital',
+        passwordHash: 'seed-placeholder-not-a-real-hash',
+        role: 'BILLING_STAFF',
       },
     ],
   });

@@ -34,6 +34,10 @@ model Hospital {
   // transaction as patient creation -- see src/patients/patient-code.ts.
   patientCodeSeq Int @default(0) @map("patient_code_seq")
 
+  // Same pattern as patientCodeSeq, for Bill.billNumber (FR-7.1/7.7) --
+  // see src/billing/bill-number.ts.
+  billNumberSeq Int @default(0) @map("bill_number_seq")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

@@ -19,32 +19,41 @@ product/architecture docs this codebase implements. TRD Section 5 explicitly
 defers field-level schema detail to `prisma/schema.prisma` itself — when in
 doubt about a model's fields, that schema is authoritative, not the docs.
 
-**Current state**: early-stage. Schema, RLS, and the first four feature
+**Current state**: early-stage. Schema, RLS, and the first five feature
 modules — front desk registration (BRS FR-3.1–FR-3.6), doctor consultation
 (BRS FR-4.1–FR-4.5), prescription digitization & routing (BRS FR-5.1–FR-5.6),
-and the in-house medical store / pharmacy (BRS FR-6.1–FR-6.10) — are
-implemented; other modules are still barrel placeholders. All migrations have
-been applied via `prisma migrate deploy`/`prisma migrate dev` against a real
-local Postgres and verified end to end (not just typechecked) — including
-that `hms_app` (no context set) sees zero rows, sees only its scoped
-hospital's rows once `withHospitalContext` sets the session variable, and
-gets a real Postgres error on a cross-tenant insert attempt; the `hms`
-superuser bypasses RLS entirely, confirming the app must never connect as it.
-Each feature module's flow was verified the same way: driven through the real
-Server Actions via the no-JS progressive-enhancement form POST path
-(including a real multipart file upload for prescriptions, round-tripped
-through `/api/uploads` and diffed byte-for-byte against the source file, and
-a stock oversell attempt confirmed to leave stock untouched), not just
-unit-level calls.
+the in-house medical store / pharmacy (BRS FR-6.1–FR-6.10), and digital
+billing (BRS FR-7.1–FR-7.7) — are implemented; other modules are still barrel
+placeholders. All migrations have been applied via `prisma migrate
+deploy`/`prisma migrate dev` against a real local Postgres and verified end
+to end (not just typechecked) — including that `hms_app` (no context set)
+sees zero rows, sees only its scoped hospital's rows once
+`withHospitalContext` sets the session variable, and gets a real Postgres
+error on a cross-tenant insert attempt; the `hms` superuser bypasses RLS
+entirely, confirming the app must never connect as it. Each feature module's
+flow was verified the same way: driven through the real Server Actions via
+the no-JS progressive-enhancement form POST path (including a real multipart
+file upload for prescriptions, round-tripped through `/api/uploads` and
+diffed byte-for-byte against the source file; a stock oversell attempt
+confirmed to leave stock untouched; and a full register→visit→prescription→
+dispense→bill→pay chain with the GST/discount math checked by hand against
+what was stored), not just unit-level calls.
 
-**Operational note**: if a schema change stops taking effect at runtime
-(Prisma errors mentioning fields/relations that look wrong, or that
-contradict what `npx prisma studio`/`psql` shows), the long-running `next
-dev` process is almost certainly holding a stale `@prisma/client` — Next
-doesn't watch `node_modules` for changes, so `prisma generate`/`migrate dev`
-regenerating the client mid-session doesn't hot-reload it. Kill and restart
-`npm run dev` after any schema change; don't debug it as an application bug
-first.
+**Operational notes**:
+
+- If a schema change stops taking effect at runtime (Prisma errors mentioning
+  fields/relations that look wrong, or that contradict what `npx prisma
+studio`/`psql` shows), the long-running `next dev` process is almost
+  certainly holding a stale `@prisma/client` — Next doesn't watch
+  `node_modules` for changes, so `prisma generate`/`migrate dev` regenerating
+  the client mid-session doesn't hot-reload it. Kill and restart `npm run dev`
+  after any schema change; don't debug it as an application bug first.
+- `BillLineItem.billId` has `ON DELETE SET NULL` (see "Digital billing"
+  below). Deleting a test `Bill` row directly (e.g. via `psql`, cleaning up
+  after manual testing) does **not** delete its line items — it orphans them
+  back to `billId IS NULL`, which then reappears in `listVisitsReadyToBill`.
+  Delete `bill_line_items` explicitly first, or you'll find stale "ready to
+  bill" entries later.
 
 Neither Docker nor a system Postgres install was available in this
 environment (no Homebrew either, and no passwordless sudo, so Homebrew itself
@@ -79,7 +88,7 @@ npm run typecheck               # tsc --noEmit
 npm run prisma:generate          # regenerate Prisma client after schema changes
 npm run prisma:migrate            # create/apply a local migration
 npm run prisma:studio              # open Prisma Studio
-npm run prisma:seed                # seed a demo hospital + front-desk/doctor/pharmacist users + demo medicines
+npm run prisma:seed                # seed a demo hospital (with address/GSTIN) + front-desk/doctor/pharmacist/billing-staff users + demo medicines
 ```
 
 No test runner is configured yet — there are no test files or test script in
@@ -90,9 +99,10 @@ chosen and wired into `package.json` first.
 
 ### Module layout (`src/`)
 
-Code is organized by domain, one top-level folder per module. Most are still
-barrel `index.ts` placeholders; `patients`, `visits`, and `prescriptions` now
-hold real data-access functions (see the module sections below):
+Code is organized by domain, one top-level folder per module. `tenants` and
+`users` are still barrel `index.ts` placeholders; `patients`, `visits`,
+`prescriptions`, `inventory`, and `billing` hold real data-access functions
+(see the module sections below):
 
 - `tenants` — hospital onboarding/branding/config (maps to the `Hospital` model) — placeholder
 - `users` — staff accounts, roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF), authentication — placeholder (no auth exists yet, see below)
@@ -100,18 +110,19 @@ hold real data-access functions (see the module sections below):
 - `visits` — `createVisit`, `listWaitingQueue`, `listVisitsForDoctor`, `getVisitDetail`, `startConsultation`, `saveConsultationNotes`, `completeConsultation` (`Visit`)
 - `prescriptions` — `uploadPrescription`, `replacePrescription`, `listPharmacyQueue`, `getPrescriptionDetail` (`Prescription`)
 - `inventory` — `searchMedicines`, `listMedicines`, `listLowStockMedicines`, `dispenseItem`, `finalizeDispensing` (`Medicine`; no DB-level uniqueness on name/batch, dedupe is app-level)
-- `billing` — invoicing (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers) — placeholder
+- `billing` — `listVisitsReadyToBill`, `createBill`, `recordPayment`, `searchBills`, `getBillDetail`, `generateBillNumber` (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers)
 - `shared` — cross-module utilities: Prisma client singleton (`prisma.ts`), `withHospitalContext`
   (`tenant-context.ts`), `recordAuditLog` (`audit-log.ts`), the local-disk file storage stand-in
   (`storage.ts`, see "Prescription digitization" below), and the temporary
   `getDevFrontDeskSession`/`getDevDoctorSession`/`getDevPharmacistSession` stubs (`dev-session.ts`, see below)
 
-Every data-access function in `patients`/`visits`/`prescriptions`/`inventory`
-takes a `Prisma.TransactionClient` (`tx`) as its first argument rather than
-importing `prisma` itself — callers open it via `withHospitalContext` so RLS
-scoping and the function's logic can't be pulled apart. Follow this pattern
-for new modules: no module-level function should import the `prisma`
-singleton directly for tenant-owned tables.
+Every data-access function in
+`patients`/`visits`/`prescriptions`/`inventory`/`billing` takes a
+`Prisma.TransactionClient` (`tx`) as its first argument rather than importing
+`prisma` itself — callers open it via `withHospitalContext` so RLS scoping and
+the function's logic can't be pulled apart. Follow this pattern for new
+modules: no module-level function should import the `prisma` singleton
+directly for tenant-owned tables.
 
 `src/app` is the Next.js App Router entrypoint (`layout.tsx`, `page.tsx`,
 `globals.css`, plus feature routes like `front-desk/`, `doctor/`, `pharmacy/`,
@@ -144,11 +155,11 @@ Relations of note:
   uses `AuditLogActor`.
 - `BillLineItem` optionally references `Medicine` (nullable — service charges
   like consultation fees have no medicine) and optionally references the
-  `Prescription` it fulfils. `billId` is also nullable: dispensing (FR-6.5,
-  see "In-house medical store / pharmacy" below) creates line items the
-  moment medicines are issued, before a Bill exists — the not-yet-built
-  billing module (BRS 3.7) attaches unbilled items (`billId IS NULL`) to a
-  real `Bill` later.
+  `Prescription` it fulfils. `billId` is also nullable (`ON DELETE SET NULL`):
+  dispensing (FR-6.5, see "In-house medical store / pharmacy" below) creates
+  line items the moment medicines are issued, before a Bill exists; billing
+  (`createBill`, see "Digital billing" below) attaches unbilled items
+  (`billId IS NULL`) to a real `Bill` once generated.
 - Money fields are integer cents (`unitPriceCents`, `totalCents`, etc.), not
   floats — preserve this convention for any new monetary field.
 
@@ -305,6 +316,42 @@ visibility to both pharmacy staff (`/pharmacy` and `/pharmacy/inventory`) and
 doctors "when prescribing" — `/doctor`'s queue page shows the same
 `listLowStockMedicines` list as a banner; keep both in sync if this logic
 changes.
+
+### Digital billing (`src/app/billing`, `src/billing`)
+
+Implements BRS FR-7.1–FR-7.7. `/billing` lists visits with dispensed-but-
+unbilled line items (`listVisitsReadyToBill`, reachable via
+`Visit -> Prescription -> BillLineItem` since line items link to a visit only
+through the prescription they fulfil) alongside a history search
+(`searchBills`, FR-7.7: by patient name/ID or bill number, optionally a date).
+`/billing/new/[visitId]` previews those unbilled items and lets billing staff
+add one optional service charge (e.g. consultation fee, FR-7.3) plus a
+discount and tax rate; `createBill` (FR-7.1/7.2) does the actual attach: the
+existing unbilled `BillLineItem`s get `billId` set to the new `Bill`, the
+service charge (if any) is created directly against it, and the bill number
+comes from `generateBillNumber` -- same atomic
+`UPDATE Hospital.billNumberSeq ... RETURNING` pattern as
+`generatePatientCode`.
+
+**Tax (FR-7.4) is computed on the post-discount taxable amount**
+(`(subtotal - discount) * taxPercent`), a common but not universal GST
+convention -- `taxPercent` is a per-bill input (`DEFAULT_TAX_PERCENT = 5` is
+only the form's starting value), not a hardcoded rate, since real GST slabs
+vary by item category and aren't modelled here. `createBill` rejects a visit
+with nothing to bill (no unbilled items and no service charge) rather than
+creating an empty invoice.
+
+`/billing/[billId]` is the printable view (FR-7.6: hospital name/logo/GSTIN,
+line items, subtotal/discount/tax/total) and, while `paymentStatus` is
+`PENDING`, the payment form (`recordPayment`, FR-7.5: UPI or Cash only, no
+insurance/TPA workflow -- this only records that payment happened via the
+hospital's own UPI QR/handle, it doesn't process payment). `recordPayment`
+rejects a bill that's already `PAID` (verified directly, not just via the
+form disappearing from the UI). Printing uses the browser's native print
+(a `<style>{'@media print {...}'}</style>` block hides the payment form/nav),
+not a PDF library -- the TRD calls for server-side PDF generation, which
+isn't built; this is a dependency-free stand-in worth reconsidering if a
+real branded PDF becomes a hard requirement.
 
 ### Local infra
 

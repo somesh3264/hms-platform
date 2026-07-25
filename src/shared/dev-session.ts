@@ -38,3 +38,7 @@ export function getDevDoctorSession(): Promise<{ hospitalId: string; actorId: st
 export function getDevPharmacistSession(): Promise<{ hospitalId: string; actorId: string }> {
   return getDevSessionForRole('PHARMACIST');
 }
+
+export function getDevBillingSession(): Promise<{ hospitalId: string; actorId: string }> {
+  return getDevSessionForRole('BILLING_STAFF');
+}

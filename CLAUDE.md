@@ -240,12 +240,20 @@ stateless JWT would make. Session TTL is 12 hours (TRD 5.1's "session
 expiry" NFR); login rate limiting/lockout, also called out in TRD 5.1, is
 not implemented.
 
-`/login` shows a hospital picker (`prisma.hospital.findMany` -- direct, not
-through `withHospitalContext`, since `hospitals` carries no RLS policy; see
-"Row-Level Security" above) plus email/password. `authenticateUser`
-(`src/users/authenticate.ts`) looks up the `User` row scoped by
-`[hospitalId, email]` inside `withHospitalContext` (the `users` table *is*
-RLS-protected), compares the password with `bcryptjs`, and records a
+`/login` is just email/password, no hospital picker: the product is deployed
+per hospital (personalization is swapping that hospital's logo/branding, not
+one shared login across many hospitals), and there's only one client today,
+so `resolveCurrentHospitalId` (`src/tenants/resolve-hospital.ts`) resolves
+the tenant automatically -- a direct `prisma.hospital.findFirst` (not through
+`withHospitalContext`, since `hospitals` carries no RLS policy; see
+"Row-Level Security" above), oldest `ACTIVE` hospital first. **This silently
+picks an arbitrary hospital once a second one is onboarded** -- it's
+explicitly flagged in that file as needing a real tenant-resolution
+mechanism (e.g. per-hospital subdomain) before that happens; don't build
+more on top of the current shortcut without revisiting it first.
+`authenticateUser` (`src/users/authenticate.ts`) looks up the `User` row
+scoped by `[hospitalId, email]` inside `withHospitalContext` (the `users`
+table *is* RLS-protected), compares the password with `bcryptjs`, and records a
 `LOGIN` audit entry on success; it returns `null` on any failure (unknown
 email, wrong password, inactive user) without distinguishing which, and
 `src/app/login/actions.ts` redirects back to `/login?error=1` rather than

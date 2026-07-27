@@ -3,23 +3,18 @@
 import { redirect } from 'next/navigation';
 
 import { createSession, ROLE_HOME, withHospitalContext } from '@/shared';
+import { resolveCurrentHospitalId } from '@/tenants';
 import { authenticateUser } from '@/users';
 
 export async function loginAction(formData: FormData): Promise<void> {
-  const hospitalId = formData.get('hospitalId');
   const email = formData.get('email');
   const password = formData.get('password');
 
-  if (
-    typeof hospitalId !== 'string' ||
-    !hospitalId ||
-    typeof email !== 'string' ||
-    !email ||
-    typeof password !== 'string' ||
-    !password
-  ) {
+  if (typeof email !== 'string' || !email || typeof password !== 'string' || !password) {
     redirect('/login?error=1');
   }
+
+  const hospitalId = await resolveCurrentHospitalId();
 
   const user = await withHospitalContext(hospitalId, (tx) =>
     authenticateUser(tx, { hospitalId, email, password }),

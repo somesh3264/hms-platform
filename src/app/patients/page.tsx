@@ -32,35 +32,37 @@ export default async function PatientsSearchPage({
       </form>
 
       {query && (
-        <table>
-          <thead>
-            <tr>
-              <th>Patient ID</th>
-              <th>Name</th>
-              <th>Phone</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.length === 0 && (
+        <section>
+          <table>
+            <thead>
               <tr>
-                <td colSpan={4}>No matches.</td>
+                <th>Patient ID</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th></th>
               </tr>
-            )}
-            {results.map((patient) => (
-              <tr key={patient.id}>
-                <td>{patient.patientCode}</td>
-                <td>
-                  {patient.firstName} {patient.lastName}
-                </td>
-                <td>{patient.phone ?? '—'}</td>
-                <td>
-                  <Link href={`/patients/${patient.id}`}>View record</Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {results.length === 0 && (
+                <tr>
+                  <td colSpan={4}>No matches.</td>
+                </tr>
+              )}
+              {results.map((patient) => (
+                <tr key={patient.id}>
+                  <td>{patient.patientCode}</td>
+                  <td>
+                    {patient.firstName} {patient.lastName}
+                  </td>
+                  <td>{patient.phone ?? '—'}</td>
+                  <td>
+                    <Link href={`/patients/${patient.id}`}>View record</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
       )}
     </main>
   );

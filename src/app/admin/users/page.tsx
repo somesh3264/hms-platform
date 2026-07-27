@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { requireSession, withHospitalContext } from '@/shared';
 import { listUsers } from '@/users';
 
+import { StatusBadge } from '@/app/components/StatusBadge';
+
 import { createUserAction } from './actions';
 
 const ASSIGNABLE_ROLES = [
@@ -46,7 +48,9 @@ export default async function UsersPage() {
                 <td>{user.email}</td>
                 <td>{user.role.replace('_', ' ')}</td>
                 <td>{user.department ?? '—'}</td>
-                <td>{user.isActive ? 'Active' : 'Deactivated'}</td>
+                <td>
+                  <StatusBadge status={user.isActive ? 'Active' : 'Deactivated'} />
+                </td>
                 <td>
                   <Link href={`/admin/users/${user.id}`}>Edit</Link>
                 </td>

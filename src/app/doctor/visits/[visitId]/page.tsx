@@ -2,6 +2,8 @@ import { getPatientHistory } from '@/patients';
 import { requireSession, withHospitalContext } from '@/shared';
 import { getVisitDetail } from '@/visits';
 
+import { StatusBadge } from '@/app/components/StatusBadge';
+
 import {
   completeConsultationAction,
   replacePrescriptionAction,
@@ -45,7 +47,9 @@ export default async function VisitDetailPage({ params }: { params: { visitId: s
         <h2>This visit</h2>
         <dl>
           <dt>Status</dt>
-          <dd>{visit.status}</dd>
+          <dd>
+            <StatusBadge status={visit.status} />
+          </dd>
           <dt>Doctor</dt>
           <dd>{visit.doctor.name}</dd>
           <dt>Department</dt>
@@ -125,7 +129,9 @@ export default async function VisitDetailPage({ params }: { params: { visitId: s
               {visit.prescriptions.map((prescription) => (
                 <tr key={prescription.id}>
                   <td>{prescription.createdAt.toLocaleString()}</td>
-                  <td>{prescription.status}</td>
+                  <td>
+                    <StatusBadge status={prescription.status} />
+                  </td>
                   <td>
                     <a href={prescription.fileUrl} target="_blank" rel="noreferrer">
                       View
@@ -169,7 +175,9 @@ export default async function VisitDetailPage({ params }: { params: { visitId: s
               <tr key={pastVisit.id}>
                 <td>{pastVisit.visitDate.toLocaleDateString()}</td>
                 <td>{pastVisit.doctor.name}</td>
-                <td>{pastVisit.status}</td>
+                <td>
+                  <StatusBadge status={pastVisit.status} />
+                </td>
                 <td>{pastVisit.prescriptions.length}</td>
               </tr>
             ))}

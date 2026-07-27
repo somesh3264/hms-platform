@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { getPatientHistory } from '@/patients';
 import { requireSession, withHospitalContext } from '@/shared';
 
+import { StatusBadge } from '@/app/components/StatusBadge';
+
 // FR-8.1/FR-8.2: a single consolidated view of a patient's visits,
 // prescriptions, and bills, with links to open any past prescription scan
 // or bill. Open to any authenticated staff role.
@@ -45,7 +47,8 @@ export default async function PatientRecordPage({
           visits.map((visit) => (
             <article key={visit.id}>
               <h3>
-                {visit.visitDate.toLocaleDateString()} — {visit.doctor.name} ({visit.status})
+                {visit.visitDate.toLocaleDateString()} — {visit.doctor.name}{' '}
+                <StatusBadge status={visit.status} />
               </h3>
               {visit.department && <p>Department: {visit.department}</p>}
               {visit.consultationNotes && <p>Notes: {visit.consultationNotes}</p>}
@@ -57,7 +60,8 @@ export default async function PatientRecordPage({
                 <ul>
                   {visit.prescriptions.map((prescription) => (
                     <li key={prescription.id}>
-                      {prescription.createdAt.toLocaleDateString()} — {prescription.status} —{' '}
+                      {prescription.createdAt.toLocaleDateString()} —{' '}
+                      <StatusBadge status={prescription.status} /> —{' '}
                       <a href={prescription.fileUrl} target="_blank" rel="noreferrer">
                         View scan
                       </a>
@@ -74,7 +78,8 @@ export default async function PatientRecordPage({
                   {visit.bills.map((bill) => (
                     <li key={bill.id}>
                       {bill.billNumber} — ₹{(bill.totalCents / 100).toFixed(2)} —{' '}
-                      {bill.paymentStatus} — <Link href={`/billing/${bill.id}`}>View bill</Link>
+                      <StatusBadge status={bill.paymentStatus} /> —{' '}
+                      <Link href={`/billing/${bill.id}`}>View bill</Link>
                     </li>
                   ))}
                 </ul>

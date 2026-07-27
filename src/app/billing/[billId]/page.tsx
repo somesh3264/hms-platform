@@ -1,6 +1,8 @@
 import { getBillDetail } from '@/billing';
 import { requireSession, withHospitalContext } from '@/shared';
 
+import { StatusBadge } from '@/app/components/StatusBadge';
+
 import { recordPaymentAction } from './actions';
 
 // Printable via the browser's native print (Ctrl/Cmd+P) -- no PDF library
@@ -20,12 +22,6 @@ export default async function BillDetailPage({ params }: { params: { billId: str
 
   return (
     <main>
-      <style>{`
-        @media print {
-          .no-print { display: none; }
-        }
-      `}</style>
-
       <header>
         {/* Plain <img>, not next/image -- see the pharmacy dispensing page
             for the same rationale (local dev-only storage, arbitrary source). */}
@@ -50,7 +46,9 @@ export default async function BillDetailPage({ params }: { params: { billId: str
           <dt>Issued</dt>
           <dd>{bill.issuedAt?.toLocaleString() ?? '—'}</dd>
           <dt>Status</dt>
-          <dd>{bill.paymentStatus}</dd>
+          <dd>
+            <StatusBadge status={bill.paymentStatus} />
+          </dd>
         </dl>
 
         <table>

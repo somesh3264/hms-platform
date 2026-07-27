@@ -2,6 +2,8 @@ import { searchMedicines } from '@/inventory';
 import { getPrescriptionDetail } from '@/prescriptions';
 import { requireSession, withHospitalContext } from '@/shared';
 
+import { StatusBadge } from '@/app/components/StatusBadge';
+
 import { dispenseItemAction, finalizeDispensingAction } from './actions';
 
 export default async function DispensePrescriptionPage({
@@ -36,7 +38,9 @@ export default async function DispensePrescriptionPage({
         <h2>Prescription</h2>
         <dl>
           <dt>Status</dt>
-          <dd>{prescription.status}</dd>
+          <dd>
+            <StatusBadge status={prescription.status} />
+          </dd>
           <dt>Department</dt>
           <dd>{prescription.visit.department ?? '—'}</dd>
           <dt>Uploaded by</dt>
@@ -146,12 +150,14 @@ export default async function DispensePrescriptionPage({
             )}
           </section>
 
-          <form action={finalizeDispensingAction}>
-            <input type="hidden" name="prescriptionId" value={prescription.id} />
-            <button type="submit" disabled={prescription.billLineItems.length === 0}>
-              Finalize dispensing
-            </button>
-          </form>
+          <section>
+            <form action={finalizeDispensingAction}>
+              <input type="hidden" name="prescriptionId" value={prescription.id} />
+              <button type="submit" disabled={prescription.billLineItems.length === 0}>
+                Finalize dispensing
+              </button>
+            </form>
+          </section>
         </>
       )}
     </main>

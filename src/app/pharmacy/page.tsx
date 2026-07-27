@@ -24,48 +24,50 @@ export default async function PharmacyQueuePage() {
       </p>
 
       {lowStock.length > 0 && (
-        <p>
+        <p className="alert alert-warning">
           <strong>Low stock:</strong> {lowStock.map((m) => m.name).join(', ')}
         </p>
       )}
 
-      {queue.length === 0 ? (
-        <p>No prescriptions waiting.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Received</th>
-              <th>Patient</th>
-              <th>Department</th>
-              <th>Uploaded by</th>
-              <th>Scan</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {queue.map((prescription) => (
-              <tr key={prescription.id}>
-                <td>{prescription.createdAt.toLocaleString()}</td>
-                <td>
-                  {prescription.patient.firstName} {prescription.patient.lastName} (
-                  {prescription.patient.patientCode})
-                </td>
-                <td>{prescription.visit.department ?? '—'}</td>
-                <td>{prescription.uploadedBy.name}</td>
-                <td>
-                  <a href={prescription.fileUrl} target="_blank" rel="noreferrer">
-                    View
-                  </a>
-                </td>
-                <td>
-                  <Link href={`/pharmacy/${prescription.id}`}>Dispense</Link>
-                </td>
+      <section>
+        {queue.length === 0 ? (
+          <p>No prescriptions waiting.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Received</th>
+                <th>Patient</th>
+                <th>Department</th>
+                <th>Uploaded by</th>
+                <th>Scan</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {queue.map((prescription) => (
+                <tr key={prescription.id}>
+                  <td>{prescription.createdAt.toLocaleString()}</td>
+                  <td>
+                    {prescription.patient.firstName} {prescription.patient.lastName} (
+                    {prescription.patient.patientCode})
+                  </td>
+                  <td>{prescription.visit.department ?? '—'}</td>
+                  <td>{prescription.uploadedBy.name}</td>
+                  <td>
+                    <a href={prescription.fileUrl} target="_blank" rel="noreferrer">
+                      View
+                    </a>
+                  </td>
+                  <td>
+                    <Link href={`/pharmacy/${prescription.id}`}>Dispense</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </main>
   );
 }

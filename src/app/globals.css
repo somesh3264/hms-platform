@@ -1,9 +1,42 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+
+  /* Primary background stays white per product direction; everything else
+     is layered on top of it with borders/subtle tints, not alternate
+     background colors. */
+  --color-bg: #ffffff;
+  --color-surface: #f9fafb;
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-contrast: #ffffff;
+
+  --color-success-bg: #ecfdf5;
+  --color-success-text: #047857;
+  --color-warning-bg: #fffbeb;
+  --color-warning-text: #b45309;
+  --color-danger-bg: #fef2f2;
+  --color-danger-text: #b91c1c;
+  --color-info-bg: #eff6ff;
+  --color-info-text: #1d4ed8;
+  --color-neutral-bg: #f3f4f6;
+  --color-neutral-text: #4b5563;
+
+  --radius: 8px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
 }
 
 * {
   box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 body {
@@ -16,12 +49,259 @@ body {
     Helvetica,
     Arial,
     sans-serif;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 1.25rem;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
+h3 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+a {
+  color: var(--color-primary);
 }
 
 main {
   max-width: 960px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem 3rem;
+}
+
+/* Each top-level <section> in a page reads as a distinct card -- pure CSS,
+   no markup changes needed in the page components. */
+main > section {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+main > section:last-child {
+  margin-bottom: 0;
+}
+
+/* Forms & inputs */
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+label:last-of-type {
+  margin-bottom: 1rem;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+input[type='checkbox'] {
+  width: auto;
+}
+
+label:has(input[type='checkbox']) {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+button {
+  font: inherit;
+  font-weight: 500;
+  color: var(--color-primary-contrast);
+  background: var(--color-primary);
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--color-primary-hover);
+}
+
+button:disabled {
+  background: var(--color-neutral-bg);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* Forms that are just a search bar (method="get") shouldn't stretch their
+   button to a block width like the stacked forms below. */
+form[method='get'] {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+form[method='get'] label {
+  margin-bottom: 0;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+tbody tr:hover {
+  background: var(--color-surface);
+}
+
+/* Definition lists (patient/visit/bill detail views) as a clean key-value
+   grid instead of the browser default vertical stack. */
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+dt {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+dd {
+  margin: 0;
+}
+
+/* Repeated visit entries in the patient longitudinal view
+   (src/app/patients/[patientId]/page.tsx) get a divider between them. */
+main > section > article + article {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border);
+}
+
+main > section > article h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+main > section > article h4 {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 1rem 0 0.35rem;
+}
+
+main > section > article ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+/* Printable bill letterhead (src/app/billing/[billId]/page.tsx) */
+main > header {
+  text-align: center;
+  padding-bottom: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+main > header p {
+  margin: 0.15rem 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+/* Status badges (src/app/components/StatusBadge.tsx) */
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.badge-warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+.badge-danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.badge-info {
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+}
+
+.badge-neutral {
+  background: var(--color-neutral-bg);
+  color: var(--color-neutral-text);
+}
+
+/* De-emphasizes a completed-but-retained list (FR-4.11's doctor home
+   screen "Completed today" section) -- visible and still clickable, just
+   visually receding compared to the actionable waiting/in-consultation
+   lists above it. */
+.muted-section {
+  opacity: 0.6;
 }
 
 /* Shared app chrome (src/app/layout.tsx) -- only rendered once a session
@@ -30,35 +310,65 @@ main {
   display: flex;
   align-items: center;
   gap: 1.5rem;
-  padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid #ddd;
+  padding: 0.85rem 1.5rem;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
   flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .app-header-brand {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .app-header-logo {
   height: 32px;
   width: auto;
+  border-radius: 4px;
 }
 
 .app-nav {
   display: flex;
-  gap: 1rem;
+  gap: 1.25rem;
   flex: 1;
+}
+
+.app-nav a {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.app-nav a:hover {
+  color: var(--color-primary);
 }
 
 .app-header-user {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  font-size: 0.9rem;
-  color: #555;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.app-header-user button {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+.app-header-user button:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 /* Login page (src/app/login) */
@@ -66,31 +376,60 @@ main {
   display: flex;
   justify-content: center;
   padding-top: 4rem;
+  max-width: none;
 }
 
 .auth-card {
   width: 100%;
   max-width: 360px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 2rem;
 }
 
 .stacked-form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0;
 }
 
-.stacked-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+/* Narrower forms (settings/edit screens) read better than stretching to
+   the full 960px content width. */
+.form-narrow {
+  max-width: 480px;
 }
 
 .alert {
-  padding: 0.5rem 0.75rem;
-  border-radius: 4px;
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
 }
 
 .alert-error {
-  background: #fdecea;
-  color: #a11;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.alert-warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+@media print {
+  .no-print {
+    display: none;
+  }
+
+  .app-header {
+    display: none;
+  }
+
+  main > section {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
 }

@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { listVisitsReadyToBill, searchBills } from '@/billing';
 import { requireSession, withHospitalContext } from '@/shared';
 
+import { StatusBadge } from '@/app/components/StatusBadge';
+
 export default async function BillingPage({ searchParams }: { searchParams: { q?: string } }) {
   const { hospitalId } = await requireSession(['BILLING_STAFF']);
   const query = searchParams.q?.trim() ?? '';
@@ -86,7 +88,9 @@ export default async function BillingPage({ searchParams }: { searchParams: { q?
                     {bill.patient.firstName} {bill.patient.lastName}
                   </td>
                   <td>₹{(bill.totalCents / 100).toFixed(2)}</td>
-                  <td>{bill.paymentStatus}</td>
+                  <td>
+                    <StatusBadge status={bill.paymentStatus} />
+                  </td>
                   <td>{bill.issuedAt?.toLocaleDateString() ?? '—'}</td>
                   <td>
                     <Link href={`/billing/${bill.id}`}>View</Link>

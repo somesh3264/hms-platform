@@ -23,7 +23,7 @@ export default async function EditUserPage({ params }: { params: { userId: strin
     <main>
       <h1>Edit user</h1>
 
-      <section>
+      <section className="form-narrow">
         <form action={updateUserAction} className="stacked-form">
           <input type="hidden" name="userId" value={user.id} />
           <label>
@@ -52,12 +52,12 @@ export default async function EditUserPage({ params }: { params: { userId: strin
             <input type="checkbox" name="isActive" defaultChecked={user.isActive} disabled={isSelf} />
             Active
           </label>
-          {isSelf && <p>You cannot deactivate your own account.</p>}
+          {isSelf && <p className="alert alert-warning">You cannot deactivate your own account.</p>}
           <button type="submit">Save</button>
         </form>
       </section>
 
-      <section>
+      <section className="form-narrow">
         <h2>Reset password</h2>
         <form action={resetPasswordAction} className="stacked-form">
           <input type="hidden" name="userId" value={user.id} />

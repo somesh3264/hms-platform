@@ -14,41 +14,47 @@ export default async function HospitalSettingsPage() {
     <main>
       <h1>Hospital Settings</h1>
 
-      <form action={updateHospitalBrandingAction}>
-        <label>
-          Hospital name
-          <input type="text" name="name" defaultValue={hospital.name} required />
-        </label>
-        <label>
-          Address
-          <input type="text" name="address" defaultValue={hospital.address ?? ''} />
-        </label>
-        <label>
-          Contact phone
-          <input type="tel" name="contactPhone" defaultValue={hospital.contactPhone ?? ''} />
-        </label>
-        <label>
-          Contact email
-          <input type="email" name="contactEmail" defaultValue={hospital.contactEmail ?? ''} />
-        </label>
-        <label>
-          GSTIN
-          <input type="text" name="gstin" defaultValue={hospital.gstin ?? ''} />
-        </label>
-        <label>
-          Theme color
-          <input type="color" name="themeColor" defaultValue={hospital.themeColor ?? '#2563eb'} />
-        </label>
-        <label>
-          Logo
-          {hospital.logoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={hospital.logoUrl} alt={hospital.name} style={{ maxHeight: '60px' }} />
-          )}
-          <input type="file" name="logo" accept="image/png,image/jpeg,image/webp" />
-        </label>
-        <button type="submit">Save</button>
-      </form>
+      <section className="form-narrow">
+        <form action={updateHospitalBrandingAction}>
+          <label>
+            Hospital name
+            <input type="text" name="name" defaultValue={hospital.name} required />
+          </label>
+          <label>
+            Address
+            <input type="text" name="address" defaultValue={hospital.address ?? ''} />
+          </label>
+          <label>
+            Contact phone
+            <input type="tel" name="contactPhone" defaultValue={hospital.contactPhone ?? ''} />
+          </label>
+          <label>
+            Contact email
+            <input type="email" name="contactEmail" defaultValue={hospital.contactEmail ?? ''} />
+          </label>
+          <label>
+            GSTIN
+            <input type="text" name="gstin" defaultValue={hospital.gstin ?? ''} />
+          </label>
+          <label>
+            Theme color
+            <input
+              type="color"
+              name="themeColor"
+              defaultValue={hospital.themeColor ?? '#2563eb'}
+            />
+          </label>
+          <label>
+            Logo
+            {hospital.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={hospital.logoUrl} alt={hospital.name} style={{ maxHeight: '60px' }} />
+            )}
+            <input type="file" name="logo" accept="image/png,image/jpeg,image/webp" />
+          </label>
+          <button type="submit">Save</button>
+        </form>
+      </section>
     </main>
   );
 }

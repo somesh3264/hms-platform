@@ -3,11 +3,10 @@
 import { redirect } from 'next/navigation';
 
 import { createBill } from '@/billing';
-import { withHospitalContext } from '@/shared';
-import { getDevBillingSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 
 export async function generateBillAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevBillingSession();
+  const { hospitalId, actorId } = await requireSession(['BILLING_STAFF']);
   const visitId = String(formData.get('visitId') ?? '');
   if (!visitId) {
     throw new Error('Missing visitId.');

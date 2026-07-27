@@ -17,3 +17,80 @@ body {
     Arial,
     sans-serif;
 }
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+/* Shared app chrome (src/app/layout.tsx) -- only rendered once a session
+   exists, so /login stays a bare unstyled-by-this-block form. */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid #ddd;
+  flex-wrap: wrap;
+}
+
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.app-header-logo {
+  height: 32px;
+  width: auto;
+}
+
+.app-nav {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+}
+
+.app-header-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+/* Login page (src/app/login) */
+.auth-page {
+  display: flex;
+  justify-content: center;
+  padding-top: 4rem;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+}
+
+.stacked-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.stacked-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.alert {
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+}
+
+.alert-error {
+  background: #fdecea;
+  color: #a11;
+}

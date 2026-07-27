@@ -1,11 +1,10 @@
 import { DEFAULT_TAX_PERCENT } from '@/billing';
-import { withHospitalContext } from '@/shared';
-import { getDevBillingSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 
 import { generateBillAction } from './actions';
 
 export default async function NewBillPage({ params }: { params: { visitId: string } }) {
-  const { hospitalId } = await getDevBillingSession();
+  const { hospitalId } = await requireSession(['BILLING_STAFF']);
 
   const { visit, unbilledItems } = await withHospitalContext(hospitalId, async (tx) => {
     const visit = await tx.visit.findFirstOrThrow({

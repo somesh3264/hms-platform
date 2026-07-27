@@ -1,2 +1,2 @@
 // User management: staff accounts, roles, and authentication.
-export {};
+export { authenticateUser } from './authenticate';

@@ -1,6 +1,5 @@
 import { getPatientHistory } from '@/patients';
-import { withHospitalContext } from '@/shared';
-import { getDevDoctorSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 import { getVisitDetail } from '@/visits';
 
 import {
@@ -12,7 +11,7 @@ import {
 } from './actions';
 
 export default async function VisitDetailPage({ params }: { params: { visitId: string } }) {
-  const { hospitalId } = await getDevDoctorSession();
+  const { hospitalId } = await requireSession(['DOCTOR']);
 
   const { visit, history } = await withHospitalContext(hospitalId, async (tx) => {
     const visit = await getVisitDetail(tx, { hospitalId, visitId: params.visitId });

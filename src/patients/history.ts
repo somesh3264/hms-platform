@@ -18,7 +18,12 @@ export async function getPatientHistory(
     orderBy: { visitDate: 'desc' },
     include: {
       doctor: { select: { id: true, name: true } },
-      prescriptions: { select: { id: true, status: true, createdAt: true } },
+      prescriptions: {
+        select: { id: true, status: true, createdAt: true, fileUrl: true, fileType: true },
+      },
+      bills: {
+        select: { id: true, billNumber: true, totalCents: true, paymentStatus: true, issuedAt: true },
+      },
     },
   });
 

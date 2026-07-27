@@ -5,8 +5,7 @@ import { revalidatePath } from 'next/cache';
 import type { Gender } from '@prisma/client';
 
 import { registerPatient } from '@/patients';
-import { withHospitalContext } from '@/shared';
-import { getDevFrontDeskSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 import { createVisit } from '@/visits';
 
 function optionalString(formData: FormData, key: string): string | undefined {
@@ -15,7 +14,7 @@ function optionalString(formData: FormData, key: string): string | undefined {
 }
 
 export async function registerPatientAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevFrontDeskSession();
+  const { hospitalId, actorId } = await requireSession(['FRONT_DESK']);
 
   const firstName = optionalString(formData, 'firstName');
   const lastName = optionalString(formData, 'lastName');
@@ -43,7 +42,7 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
 }
 
 export async function createVisitAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevFrontDeskSession();
+  const { hospitalId, actorId } = await requireSession(['FRONT_DESK']);
 
   const patientId = optionalString(formData, 'patientId');
   const doctorId = optionalString(formData, 'doctorId');

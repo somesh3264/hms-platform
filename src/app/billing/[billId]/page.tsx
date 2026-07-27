@@ -1,6 +1,5 @@
 import { getBillDetail } from '@/billing';
-import { withHospitalContext } from '@/shared';
-import { getDevBillingSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 
 import { recordPaymentAction } from './actions';
 
@@ -10,7 +9,10 @@ import { recordPaymentAction } from './actions';
 // with hospital name and logo) without server-side PDF generation, which
 // the TRD calls for but isn't built here.
 export default async function BillDetailPage({ params }: { params: { billId: string } }) {
-  const { hospitalId } = await getDevBillingSession();
+  // FR-8.2: any authorized staff role can open a past bill from a patient's
+  // record (src/app/patients/[patientId]), not just billing staff -- the
+  // payment form below is still restricted to BILLING_STAFF.
+  const { hospitalId, role } = await requireSession();
 
   const bill = await withHospitalContext(hospitalId, (tx) =>
     getBillDetail(tx, { hospitalId, billId: params.billId }),
@@ -95,7 +97,7 @@ export default async function BillDetailPage({ params }: { params: { billId: str
         )}
       </section>
 
-      {bill.paymentStatus === 'PENDING' && (
+      {bill.paymentStatus === 'PENDING' && role === 'BILLING_STAFF' && (
         <section className="no-print">
           <h2>Record payment</h2>
           <form action={recordPaymentAction}>

@@ -3,8 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { uploadPrescription, replacePrescription } from '@/prescriptions';
-import { withHospitalContext } from '@/shared';
-import { getDevDoctorSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 import { completeConsultation, saveConsultationNotes, startConsultation } from '@/visits';
 
 async function readFileField(
@@ -27,7 +26,7 @@ async function readFileField(
 }
 
 export async function startConsultationAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevDoctorSession();
+  const { hospitalId, actorId } = await requireSession(['DOCTOR']);
   const visitId = String(formData.get('visitId') ?? '');
   if (!visitId) {
     throw new Error('Missing visitId.');
@@ -42,7 +41,7 @@ export async function startConsultationAction(formData: FormData): Promise<void>
 }
 
 export async function saveNotesAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevDoctorSession();
+  const { hospitalId, actorId } = await requireSession(['DOCTOR']);
   const visitId = String(formData.get('visitId') ?? '');
   if (!visitId) {
     throw new Error('Missing visitId.');
@@ -57,7 +56,7 @@ export async function saveNotesAction(formData: FormData): Promise<void> {
 }
 
 export async function uploadPrescriptionAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevDoctorSession();
+  const { hospitalId, actorId } = await requireSession(['DOCTOR']);
   const visitId = String(formData.get('visitId') ?? '');
   if (!visitId) {
     throw new Error('Missing visitId.');
@@ -73,7 +72,7 @@ export async function uploadPrescriptionAction(formData: FormData): Promise<void
 }
 
 export async function replacePrescriptionAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevDoctorSession();
+  const { hospitalId, actorId } = await requireSession(['DOCTOR']);
   const visitId = String(formData.get('visitId') ?? '');
   const prescriptionId = String(formData.get('prescriptionId') ?? '');
   if (!visitId || !prescriptionId) {
@@ -90,7 +89,7 @@ export async function replacePrescriptionAction(formData: FormData): Promise<voi
 }
 
 export async function completeConsultationAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevDoctorSession();
+  const { hospitalId, actorId } = await requireSession(['DOCTOR']);
   const visitId = String(formData.get('visitId') ?? '');
   if (!visitId) {
     throw new Error('Missing visitId.');

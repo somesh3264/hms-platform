@@ -1,11 +1,10 @@
 import Link from 'next/link';
 
 import { listVisitsReadyToBill, searchBills } from '@/billing';
-import { withHospitalContext } from '@/shared';
-import { getDevBillingSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 
 export default async function BillingPage({ searchParams }: { searchParams: { q?: string } }) {
-  const { hospitalId } = await getDevBillingSession();
+  const { hospitalId } = await requireSession(['BILLING_STAFF']);
   const query = searchParams.q?.trim() ?? '';
 
   const { readyToBill, bills } = await withHospitalContext(hospitalId, async (tx) => {

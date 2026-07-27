@@ -2,14 +2,13 @@ import Link from 'next/link';
 
 import { listLowStockMedicines } from '@/inventory';
 import { listPharmacyQueue } from '@/prescriptions';
-import { withHospitalContext } from '@/shared';
-import { getDevPharmacistSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 
 // Worklist proving FR-5.4's routing: a prescription appears here the moment
 // it's uploaded from the doctor's consultation screen, with no separate
 // routing step. Each row links to the dispensing screen (FR-6.1).
 export default async function PharmacyQueuePage() {
-  const { hospitalId } = await getDevPharmacistSession();
+  const { hospitalId } = await requireSession(['PHARMACIST']);
 
   const { queue, lowStock } = await withHospitalContext(hospitalId, async (tx) => {
     const queue = await listPharmacyQueue(tx, hospitalId);

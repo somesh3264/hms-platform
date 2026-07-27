@@ -41,6 +41,25 @@ export async function saveFile(params: SaveFileParams): Promise<SavedFile> {
   return { url: `/api/uploads/${storageKey}`, storageKey };
 }
 
+export interface SaveHospitalLogoParams {
+  hospitalId: string;
+  fileName: string;
+  data: Buffer;
+}
+
+// Separate from saveFile rather than generalizing it: saveFile's key shape
+// is visit-scoped (FR-5.2 prescriptions), and a hospital logo (FR-1.2) has
+// no visit to hang off of.
+export async function saveHospitalLogo(params: SaveHospitalLogoParams): Promise<SavedFile> {
+  const storageKey = `${params.hospitalId}/logo/${randomUUID()}-${sanitizeFileName(params.fileName)}`;
+  const filePath = path.join(UPLOAD_ROOT, storageKey);
+
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, params.data);
+
+  return { url: `/api/uploads/${storageKey}`, storageKey };
+}
+
 // Resolves a storage key (the path segment after /api/uploads/) back to
 // bytes + content type. Rejects anything that would escape UPLOAD_ROOT.
 export async function readStoredFile(

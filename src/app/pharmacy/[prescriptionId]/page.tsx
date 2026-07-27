@@ -1,7 +1,6 @@
 import { searchMedicines } from '@/inventory';
 import { getPrescriptionDetail } from '@/prescriptions';
-import { withHospitalContext } from '@/shared';
-import { getDevPharmacistSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 
 import { dispenseItemAction, finalizeDispensingAction } from './actions';
 
@@ -12,7 +11,7 @@ export default async function DispensePrescriptionPage({
   params: { prescriptionId: string };
   searchParams: { medQuery?: string };
 }) {
-  const { hospitalId } = await getDevPharmacistSession();
+  const { hospitalId } = await requireSession(['PHARMACIST']);
   const medQuery = searchParams.medQuery?.trim() ?? '';
 
   const { prescription, medicineResults } = await withHospitalContext(hospitalId, async (tx) => {

@@ -1,12 +1,11 @@
 import Link from 'next/link';
 
 import { listLowStockMedicines } from '@/inventory';
-import { withHospitalContext } from '@/shared';
-import { getDevDoctorSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 import { listVisitsForDoctor } from '@/visits';
 
 export default async function DoctorQueuePage() {
-  const { hospitalId, actorId: doctorId } = await getDevDoctorSession();
+  const { hospitalId, actorId: doctorId } = await requireSession(['DOCTOR']);
 
   const { visits, lowStock } = await withHospitalContext(hospitalId, async (tx) => {
     const visits = await listVisitsForDoctor(tx, {

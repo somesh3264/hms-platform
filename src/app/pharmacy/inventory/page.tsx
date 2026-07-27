@@ -1,9 +1,8 @@
 import { listMedicines } from '@/inventory';
-import { withHospitalContext } from '@/shared';
-import { getDevPharmacistSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 
 export default async function InventoryPage() {
-  const { hospitalId } = await getDevPharmacistSession();
+  const { hospitalId } = await requireSession(['PHARMACIST']);
 
   const medicines = await withHospitalContext(hospitalId, (tx) => listMedicines(tx, hospitalId));
 

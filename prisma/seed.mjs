@@ -1,11 +1,13 @@
-// Seeds a demo hospital with a front-desk user, a doctor, a pharmacist, and
-// billing staff, so the front-desk/doctor/pharmacy/billing modules (and
-// src/shared/dev-session.ts, its temporary stand-in for real auth) have
-// something to resolve against locally. Not meant to represent production
-// data.
+// Seeds a demo hospital with a hospital admin, front-desk user, doctor,
+// pharmacist, and billing staff, so the front-desk/doctor/pharmacy/billing/
+// admin modules have real accounts to log into locally (src/app/login).
+// Not meant to represent production data -- DEMO_PASSWORD below is a shared
+// dev-only password for every seeded user.
 import { PrismaClient } from '@prisma/client';
+import { hashSync } from 'bcryptjs';
 
 const prisma = new PrismaClient();
+const DEMO_PASSWORD = 'password123';
 
 async function main() {
   const existing = await prisma.hospital.findFirst({ where: { name: 'Demo Hospital' } });
@@ -23,40 +25,46 @@ async function main() {
     },
   });
 
-  // No auth module exists yet (FR-2.4) -- these are not real password
-  // hashes, just placeholders so the User rows are creatable.
-  await prisma.user.createMany({
-    data: [
-      {
-        hospitalId: hospital.id,
-        name: 'Priya Sharma',
-        email: 'frontdesk@demo.hospital',
-        passwordHash: 'seed-placeholder-not-a-real-hash',
-        role: 'FRONT_DESK',
-      },
-      {
-        hospitalId: hospital.id,
-        name: 'Dr. Rao',
-        email: 'doctor@demo.hospital',
-        passwordHash: 'seed-placeholder-not-a-real-hash',
-        role: 'DOCTOR',
-      },
-      {
-        hospitalId: hospital.id,
-        name: 'Anil Kumar',
-        email: 'pharmacist@demo.hospital',
-        passwordHash: 'seed-placeholder-not-a-real-hash',
-        role: 'PHARMACIST',
-      },
-      {
-        hospitalId: hospital.id,
-        name: 'Sunita Iyer',
-        email: 'billing@demo.hospital',
-        passwordHash: 'seed-placeholder-not-a-real-hash',
-        role: 'BILLING_STAFF',
-      },
-    ],
-  });
+  const passwordHash = hashSync(DEMO_PASSWORD, 10);
+  const demoUsers = [
+    {
+      hospitalId: hospital.id,
+      name: 'Meera Nair',
+      email: 'admin@demo.hospital',
+      passwordHash,
+      role: 'HOSPITAL_ADMIN',
+    },
+    {
+      hospitalId: hospital.id,
+      name: 'Priya Sharma',
+      email: 'frontdesk@demo.hospital',
+      passwordHash,
+      role: 'FRONT_DESK',
+    },
+    {
+      hospitalId: hospital.id,
+      name: 'Dr. Rao',
+      email: 'doctor@demo.hospital',
+      passwordHash,
+      role: 'DOCTOR',
+    },
+    {
+      hospitalId: hospital.id,
+      name: 'Anil Kumar',
+      email: 'pharmacist@demo.hospital',
+      passwordHash,
+      role: 'PHARMACIST',
+    },
+    {
+      hospitalId: hospital.id,
+      name: 'Sunita Iyer',
+      email: 'billing@demo.hospital',
+      passwordHash,
+      role: 'BILLING_STAFF',
+    },
+  ];
+
+  await prisma.user.createMany({ data: demoUsers });
 
   const in15Days = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
   const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
@@ -101,6 +109,10 @@ async function main() {
   });
 
   console.log(`Seeded Demo Hospital (${hospital.id}).`);
+  console.log(`Log in at /login, hospital "Demo Hospital", password "${DEMO_PASSWORD}" for all of:`);
+  for (const user of demoUsers) {
+    console.log(`  ${user.role.padEnd(14)} ${user.email}`);
+  }
 }
 
 main()

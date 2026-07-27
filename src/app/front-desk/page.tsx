@@ -1,12 +1,11 @@
 import { searchPatients } from '@/patients';
-import { withHospitalContext } from '@/shared';
-import { getDevFrontDeskSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 import { listWaitingQueue } from '@/visits';
 
 import { createVisitAction, registerPatientAction } from './actions';
 
 export default async function FrontDeskPage({ searchParams }: { searchParams: { q?: string } }) {
-  const { hospitalId } = await getDevFrontDeskSession();
+  const { hospitalId } = await requireSession(['FRONT_DESK']);
   const query = searchParams.q?.trim() ?? '';
 
   const { searchResults, queue, doctors } = await withHospitalContext(hospitalId, async (tx) => {

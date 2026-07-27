@@ -3,11 +3,10 @@
 import { revalidatePath } from 'next/cache';
 
 import { dispenseItem, finalizeDispensing } from '@/inventory';
-import { withHospitalContext } from '@/shared';
-import { getDevPharmacistSession } from '@/shared/dev-session';
+import { requireSession, withHospitalContext } from '@/shared';
 
 export async function dispenseItemAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevPharmacistSession();
+  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
   const prescriptionId = String(formData.get('prescriptionId') ?? '');
   const medicineId = String(formData.get('medicineId') ?? '');
   const quantity = Number(formData.get('quantity'));
@@ -26,7 +25,7 @@ export async function dispenseItemAction(formData: FormData): Promise<void> {
 }
 
 export async function finalizeDispensingAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await getDevPharmacistSession();
+  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
   const prescriptionId = String(formData.get('prescriptionId') ?? '');
   if (!prescriptionId) {
     throw new Error('Missing prescriptionId.');

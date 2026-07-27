@@ -19,12 +19,17 @@ product/architecture docs this codebase implements. TRD Section 5 explicitly
 defers field-level schema detail to `prisma/schema.prisma` itself — when in
 doubt about a model's fields, that schema is authoritative, not the docs.
 
-**Current state**: early-stage. Schema, RLS, and the first five feature
+**Current state**: early-stage. Schema, RLS, the first five feature
 modules — front desk registration (BRS FR-3.1–FR-3.6), doctor consultation
 (BRS FR-4.1–FR-4.5), prescription digitization & routing (BRS FR-5.1–FR-5.6),
 the in-house medical store / pharmacy (BRS FR-6.1–FR-6.10), and digital
-billing (BRS FR-7.1–FR-7.7) — are implemented; other modules are still barrel
-placeholders. All migrations have been applied via `prisma migrate
+billing (BRS FR-7.1–FR-7.7) — plus real authentication (BRS FR-2.4, see
+"Authentication" below), the patient longitudinal view (BRS FR-8.1–FR-8.3),
+and a minimal hospital branding admin screen (BRS FR-1.2/FR-1.3) are
+implemented. Explicitly not yet built: Super Admin hospital onboarding/
+subscription management (FR-1.1/FR-1.6), Hospital Admin user CRUD (FR-2.2),
+reporting/dashboards (FR-9), and notifications/digital delivery (FR-10).
+All migrations have been applied via `prisma migrate
 deploy`/`prisma migrate dev` against a real local Postgres and verified end
 to end (not just typechecked) — including that `hms_app` (no context set)
 sees zero rows, sees only its scoped hospital's rows once
@@ -37,7 +42,18 @@ file upload for prescriptions, round-tripped through `/api/uploads` and
 diffed byte-for-byte against the source file; a stock oversell attempt
 confirmed to leave stock untouched; and a full register→visit→prescription→
 dispense→bill→pay chain with the GST/discount math checked by hand against
-what was stored), not just unit-level calls.
+what was stored), not just unit-level calls. Authentication, the patient
+longitudinal view, and the hospital branding admin screen were verified the
+same way against a real browser session: logging in as all 5 seeded roles
+and confirming each lands on its own module with only its own nav links
+visible; a wrong password showing the inline error without revealing which
+field was wrong; a role hitting another role's URL directly bouncing back
+through `/`; logout clearing the session so a protected URL redirects back
+to `/login`; the patient record view showing a real dispense→bill→pay
+chain's prescription scan and paid bill with working links; and a hospital
+logo upload round-tripped byte-for-byte through `saveHospitalLogo`/
+`/api/uploads` the same way prescription uploads were, then confirmed to
+appear on both the nav header and the printable bill view.
 
 **Operational notes**:
 
@@ -88,7 +104,7 @@ npm run typecheck               # tsc --noEmit
 npm run prisma:generate          # regenerate Prisma client after schema changes
 npm run prisma:migrate            # create/apply a local migration
 npm run prisma:studio              # open Prisma Studio
-npm run prisma:seed                # seed a demo hospital (with address/GSTIN) + front-desk/doctor/pharmacist/billing-staff users + demo medicines
+npm run prisma:seed                # seed a demo hospital (with address/GSTIN) + hospital-admin/front-desk/doctor/pharmacist/billing-staff users (all password "password123") + demo medicines
 ```
 
 No test runner is configured yet — there are no test files or test script in
@@ -100,12 +116,12 @@ chosen and wired into `package.json` first.
 ### Module layout (`src/`)
 
 Code is organized by domain, one top-level folder per module. `tenants` and
-`users` are still barrel `index.ts` placeholders; `patients`, `visits`,
-`prescriptions`, `inventory`, and `billing` hold real data-access functions
-(see the module sections below):
+`users` each hold one real function so far (see below); `patients`, `visits`,
+`prescriptions`, `inventory`, and `billing` hold the fuller set of
+data-access functions (see the module sections below):
 
-- `tenants` — hospital onboarding/branding/config (maps to the `Hospital` model) — placeholder
-- `users` — staff accounts, roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF), authentication — placeholder (no auth exists yet, see below)
+- `tenants` — `updateHospitalBranding` (hospital branding/config, maps to the `Hospital` model); Super Admin onboarding/subscription management (FR-1.1/FR-1.6) is not yet built
+- `users` — `authenticateUser` (FR-2.4 login); staff accounts, roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF); Hospital Admin user CRUD (FR-2.2) is not yet built
 - `patients` — `searchPatients`, `registerPatient`, `updatePatientDemographics`, `generatePatientCode`, `getPatientHistory` (`Patient`)
 - `visits` — `createVisit`, `listWaitingQueue`, `listVisitsForDoctor`, `getVisitDetail`, `startConsultation`, `saveConsultationNotes`, `completeConsultation` (`Visit`)
 - `prescriptions` — `uploadPrescription`, `replacePrescription`, `listPharmacyQueue`, `getPrescriptionDetail` (`Prescription`)
@@ -113,8 +129,9 @@ Code is organized by domain, one top-level folder per module. `tenants` and
 - `billing` — `listVisitsReadyToBill`, `createBill`, `recordPayment`, `searchBills`, `getBillDetail`, `generateBillNumber` (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers)
 - `shared` — cross-module utilities: Prisma client singleton (`prisma.ts`), `withHospitalContext`
   (`tenant-context.ts`), `recordAuditLog` (`audit-log.ts`), the local-disk file storage stand-in
-  (`storage.ts`, see "Prescription digitization" below), and the temporary
-  `getDevFrontDeskSession`/`getDevDoctorSession`/`getDevPharmacistSession` stubs (`dev-session.ts`, see below)
+  (`storage.ts`, see "Prescription digitization" below), and the signed-cookie session
+  (`session.ts`: `createSession`/`getSession`/`requireSession`/`destroySession`/`ROLE_HOME`,
+  see "Authentication" below)
 
 Every data-access function in
 `patients`/`visits`/`prescriptions`/`inventory`/`billing` takes a
@@ -210,6 +227,52 @@ The Prisma client is accessed via the singleton in `src/shared/prisma.ts`
 pool) — import `prisma` from `@/shared` rather than instantiating `PrismaClient`
 directly.
 
+### Authentication (`src/app/login`, `src/app/logout`, `src/shared/session.ts`, `src/users`)
+
+Implements BRS FR-2.4. A signed-cookie session (TRD Section 3: "self-hosted
+session/JWT-based auth ... and role middleware"), not a hosted IdP or
+next-auth: `src/shared/session.ts` HMAC-signs `{sub, hospitalId, role, name,
+exp}` with `SESSION_SECRET` (`.env`/`.env.example`) using Node's
+`crypto.createHmac`, stores it in an `httpOnly` cookie, and verifies it on
+each request with no server-side session store or DB round-trip -- the
+signed cookie is the source of truth between logins, same tradeoff a
+stateless JWT would make. Session TTL is 12 hours (TRD 5.1's "session
+expiry" NFR); login rate limiting/lockout, also called out in TRD 5.1, is
+not implemented.
+
+`/login` shows a hospital picker (`prisma.hospital.findMany` -- direct, not
+through `withHospitalContext`, since `hospitals` carries no RLS policy; see
+"Row-Level Security" above) plus email/password. `authenticateUser`
+(`src/users/authenticate.ts`) looks up the `User` row scoped by
+`[hospitalId, email]` inside `withHospitalContext` (the `users` table *is*
+RLS-protected), compares the password with `bcryptjs`, and records a
+`LOGIN` audit entry on success; it returns `null` on any failure (unknown
+email, wrong password, inactive user) without distinguishing which, and
+`src/app/login/actions.ts` redirects back to `/login?error=1` rather than
+throwing -- a deliberate, narrow deviation from the throw-on-invalid-input
+convention used elsewhere (see below), since login failures are
+expected/frequent, not a client error to surface via Next's default error
+page.
+
+`requireSession(allowedRoles?)` is the replacement for the old
+`getDevFrontDeskSession`/`getDevDoctorSession`/`getDevPharmacistSession`/
+`getDevBillingSession` dev-only stubs (deleted): it redirects to `/login` if
+there's no session, to `/` (which redirects by role via `ROLE_HOME`) if the
+role isn't allowed, and otherwise returns `{hospitalId, actorId, role,
+name}` -- the same shape the dev-session stubs returned, so every
+page/action in front-desk/doctor/pharmacy/billing calls it exactly like they
+called the stub it replaced, just with an explicit allowed-roles list.
+`src/app/layout.tsx` calls `getSession()` (not `requireSession`, since
+`/login` itself must render without one) to conditionally show the shared
+nav header (hospital branding, current user, role-appropriate links, log
+out).
+
+**Not yet built**: Hospital Admin creating/editing/deactivating other users
+(FR-2.2) -- only the 5 users `prisma/seed.mjs` creates can log in today;
+Super Admin tenant onboarding (FR-1.1/FR-1.6); fine-grained per-screen
+permissions beyond the role-gated routes above (FR-2.3 is satisfied at the
+route level only).
+
 ### Front desk registration (`src/app/front-desk`, `src/patients`, `src/visits`)
 
 Implements BRS FR-3.1–FR-3.6: search patients (`searchPatients`), register a
@@ -226,14 +289,9 @@ read-then-write, so concurrent registrations at the same hospital can't
 collide. Every write in this module also calls `recordAuditLog` in the same
 transaction (FR-2.5).
 
-**No authentication exists yet (FR-2.4 is unimplemented).**
-`src/shared/dev-session.ts`'s `getDevFrontDeskSession()` is a deliberate,
-clearly-marked stand-in: it resolves "the current hospital/actor" by querying
-the first `Hospital` and its first `FRONT_DESK` user, seeded by
-`prisma/seed.mjs` (`npm run prisma:seed`) — run that once before exercising
-this route, or `getDevFrontDeskSession` throws. Every call site using it must
-be revisited once real auth lands; don't extend this pattern to new routes
-without flagging it the same way.
+Gated to the `FRONT_DESK` role via `requireSession(['FRONT_DESK'])` (see
+"Authentication" above) -- run `npm run prisma:seed` once first so a
+`FRONT_DESK` user exists to log in as.
 
 ### Doctor consultation (`src/app/doctor`, `src/visits`, `src/patients`)
 
@@ -243,8 +301,8 @@ they left mid-visit), the visit detail screen aggregating patient
 demographics and full visit/prescription history (`getVisitDetail` +
 `getPatientHistory`), starting a consultation (`startConsultation`: WAITING →
 IN_CONSULTATION only), and saving free-text consultation notes
-(`saveConsultationNotes`, only while IN_CONSULTATION). Uses
-`getDevDoctorSession()` (same `dev-session.ts` stub, same caveats as above).
+(`saveConsultationNotes`, only while IN_CONSULTATION). Gated to the
+`DOCTOR` role via `requireSession(['DOCTOR'])` (see "Authentication" above).
 
 `completeConsultation` (FR-4.5) requires a `Prescription` row to already
 exist for the visit before allowing IN_CONSULTATION → COMPLETED. It's now
@@ -272,7 +330,7 @@ the patient's permanent record (FR-5.5) and `recordAuditLog` captures the
 change, only valid while the existing row is still `UPLOADED` (not already
 `DISPENSED` or `SUPERSEDED`).
 
-`/pharmacy` (`getDevPharmacistSession`, same dev-session caveats) lists what's
+`/pharmacy` (gated to `PHARMACIST` via `requireSession`) lists what's
 routed here (proving FR-5.4) and now also links to the dispensing screen for
 each — see "In-house medical store / pharmacy" below.
 
@@ -281,10 +339,10 @@ each — see "In-house medical store / pharmacy" below.
 writes under `.data/uploads/` (gitignored) and returns a `/api/uploads/...`
 URL; `src/app/api/uploads/[...key]/route.ts` serves it back. **That route has
 no access control** — anyone who knows/guesses a storage key can read the
-file. That's acceptable only because it's local dev; real object storage must
-use short-lived signed URLs or bucket-scoped policies, and this route should
-be deleted (not hardened) once that's wired up, the same way the dev-session
-auth stubs should be deleted once real auth exists.
+file, regardless of login state. That's acceptable only because it's local
+dev; real object storage must use short-lived signed URLs or bucket-scoped
+policies, and this route should be deleted (not hardened) once that's wired
+up.
 
 ### In-house medical store / pharmacy (`src/app/pharmacy`, `src/inventory`)
 
@@ -352,6 +410,47 @@ form disappearing from the UI). Printing uses the browser's native print
 not a PDF library -- the TRD calls for server-side PDF generation, which
 isn't built; this is a dependency-free stand-in worth reconsidering if a
 real branded PDF becomes a hard requirement.
+
+### Patient longitudinal view (`src/app/patients`, `src/patients/history.ts`)
+
+Implements BRS FR-8.1–FR-8.3: `/patients` searches (reusing `searchPatients`,
+same as front desk's search) and `/patients/[patientId]` shows every visit
+with its doctor/status/notes, prescriptions (status + a direct link to the
+scan), and bills (amount, payment status, a link to `/billing/[billId]`).
+Open to any authenticated role via `requireSession()` with no roles argument
+(FR-8's "authorized staff", not gated to one module). `getPatientHistory`
+(already used by the doctor's visit detail page) was extended to also
+`include` each visit's `bills` and the prescription `fileUrl`/`fileType` --
+the `Visit.bills` relation already existed, it just wasn't selected before.
+
+### Hospital branding admin (`src/app/admin/hospital`, `src/tenants`)
+
+Implements BRS FR-1.2/FR-1.3 minimally: a `HOSPITAL_ADMIN`-gated form to edit
+the `Hospital` branding fields that already existed on the schema but were
+seed-only (`name`, `address`, `contactPhone`, `contactEmail`, `gstin`,
+`themeColor`, plus a logo upload via `saveHospitalLogo` in
+`src/shared/storage.ts` -- a separate small function from `saveFile` rather
+than generalizing it, since `saveFile`'s storage key is visit-scoped and a
+logo has no visit to hang off of). `updateHospitalBranding`
+(`src/tenants/update-branding.ts`) writes both the `Hospital` row and an
+audit log entry through the same `withHospitalContext` transaction, even
+though `hospitals` itself has no RLS policy -- only the audit log write
+needs the tenant-scoped transaction, and running the Hospital update on the
+same `tx` is no different from running it on the plain client. `themeColor`
+becomes editable here but nothing in the UI consumes it yet (FR-1.4, a
+"Should have," is out of scope for now). Super Admin hospital onboarding/
+subscription management (FR-1.1/FR-1.6) is not built -- only the one hospital
+`prisma/seed.mjs` creates exists.
+
+**The form has full-overwrite semantics, not a partial patch**: every
+optional field (`address`, `contactPhone`, `contactEmail`, `gstin`,
+`themeColor`) is set to `null` if submitted blank, since the whole form is
+always resubmitted together -- there's no per-field "leave unchanged" path.
+Confirmed directly: a script that called `updateHospitalBranding` with only
+`address` set (omitting the other optional fields, unlike the real form)
+wiped the hospital's `gstin` as a side effect -- the function behaving
+exactly as designed, not a bug, but a sharp edge worth knowing before
+scripting against it outside the real form.
 
 ### Local infra
 

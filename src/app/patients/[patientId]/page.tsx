@@ -1,0 +1,88 @@
+import Link from 'next/link';
+
+import { getPatientHistory } from '@/patients';
+import { requireSession, withHospitalContext } from '@/shared';
+
+// FR-8.1/FR-8.2: a single consolidated view of a patient's visits,
+// prescriptions, and bills, with links to open any past prescription scan
+// or bill. Open to any authenticated staff role.
+export default async function PatientRecordPage({
+  params,
+}: {
+  params: { patientId: string };
+}) {
+  const { hospitalId } = await requireSession();
+
+  const { patient, visits } = await withHospitalContext(hospitalId, (tx) =>
+    getPatientHistory(tx, { hospitalId, patientId: params.patientId }),
+  );
+
+  return (
+    <main>
+      <h1>
+        {patient.firstName} {patient.lastName} ({patient.patientCode})
+      </h1>
+
+      <section>
+        <h2>Demographics</h2>
+        <dl>
+          <dt>Date of birth</dt>
+          <dd>{patient.dateOfBirth.toLocaleDateString()}</dd>
+          <dt>Gender</dt>
+          <dd>{patient.gender}</dd>
+          <dt>Phone</dt>
+          <dd>{patient.phone ?? '—'}</dd>
+          <dt>Address</dt>
+          <dd>{patient.address ?? '—'}</dd>
+        </dl>
+      </section>
+
+      <section>
+        <h2>Visit history</h2>
+        {visits.length === 0 ? (
+          <p>No visits yet.</p>
+        ) : (
+          visits.map((visit) => (
+            <article key={visit.id}>
+              <h3>
+                {visit.visitDate.toLocaleDateString()} — {visit.doctor.name} ({visit.status})
+              </h3>
+              {visit.department && <p>Department: {visit.department}</p>}
+              {visit.consultationNotes && <p>Notes: {visit.consultationNotes}</p>}
+
+              <h4>Prescriptions</h4>
+              {visit.prescriptions.length === 0 ? (
+                <p>None.</p>
+              ) : (
+                <ul>
+                  {visit.prescriptions.map((prescription) => (
+                    <li key={prescription.id}>
+                      {prescription.createdAt.toLocaleDateString()} — {prescription.status} —{' '}
+                      <a href={prescription.fileUrl} target="_blank" rel="noreferrer">
+                        View scan
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <h4>Bills</h4>
+              {visit.bills.length === 0 ? (
+                <p>None.</p>
+              ) : (
+                <ul>
+                  {visit.bills.map((bill) => (
+                    <li key={bill.id}>
+                      {bill.billNumber} — ₹{(bill.totalCents / 100).toFixed(2)} —{' '}
+                      {bill.paymentStatus} — <Link href={`/billing/${bill.id}`}>View bill</Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
+          ))
+        )}
+      </section>
+    </main>
+  );
+}

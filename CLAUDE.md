@@ -10,7 +10,7 @@ is onboarded as a `Hospital`, and all clinical/operational data is scoped by
 `hospitalId` — data isolation between hospitals must be enforced in every query,
 not just at the schema level. The production design also relies on PostgreSQL
 Row-Level Security as a second line of defense beneath application-layer checks
-(see `docs/HMS_Technical_Requirements_Document.md` Section 2.3/8) — implemented,
+(see `docs/HMS_Technical_Requirements_Document.md` Section 2.3/9) — implemented,
 see "Row-Level Security" below.
 
 `docs/HMS_Business_Requirement_Specification.md` (BRS) and
@@ -20,18 +20,22 @@ defers field-level schema detail to `prisma/schema.prisma` itself — when in
 doubt about a model's fields, that schema is authoritative, not the docs.
 
 **Current state**: early-stage. Schema, RLS, the first five feature
-modules — front desk registration (BRS FR-3.1–FR-3.6), doctor consultation
-(BRS FR-4.1–FR-4.5), prescription digitization & routing (BRS FR-5.1–FR-5.6),
-the in-house medical store / pharmacy (BRS FR-6.1–FR-6.10), and digital
-billing (BRS FR-7.1–FR-7.7) — plus real authentication (BRS FR-2.4, see
-"Authentication" below), the patient longitudinal view (BRS FR-8.1–FR-8.3),
-a minimal hospital branding admin screen (BRS FR-1.2/FR-1.3), and Hospital
-Admin user management (BRS FR-2.2) are implemented. Explicitly not yet
-built: Super Admin hospital onboarding/subscription management
-(FR-1.1/FR-1.6) -- of questionable relevance now that the product is
-deployed one hospital at a time rather than as a shared multi-hospital
-instance, see "Authentication" below -- reporting/dashboards (FR-9), and
-notifications/digital delivery (FR-10).
+modules — front desk registration (BRS FR-3.1–FR-3.8, including appointment
+scheduling and the daily front-desk token/queue number), doctor consultation
+including the FR-4.6–FR-4.12 home screen (BRS FR-4.1–FR-4.12), prescription
+digitization & routing (BRS FR-5.1–FR-5.6), the in-house medical store /
+pharmacy (BRS FR-6.1–FR-6.10), and digital billing (BRS FR-7.1–FR-7.7) —
+plus real authentication (BRS FR-2.4, see "Authentication" below), the
+patient longitudinal view (BRS FR-8.1–FR-8.3), a minimal hospital branding
+admin screen (BRS FR-1.2/FR-1.3), and Hospital Admin user management (BRS
+FR-2.2) are implemented. Explicitly not yet built: subdomain-based hospital
+login resolution (BRS FR-1.7, added in BRS v0.4/TRD v0.3 -- login still uses
+the single-tenant `resolveCurrentHospitalId` shortcut described in
+"Authentication" below); Super Admin hospital onboarding/subscription
+management (FR-1.1/FR-1.6) -- of questionable relevance now that the
+product is deployed one hospital at a time rather than as a shared
+multi-hospital instance, see "Authentication" below -- reporting/dashboards
+(FR-9), and notifications/digital delivery (FR-10).
 All migrations have been applied via `prisma migrate
 deploy`/`prisma migrate dev` against a real local Postgres and verified end
 to end (not just typechecked) — including that `hms_app` (no context set)
@@ -56,7 +60,16 @@ to `/login`; the patient record view showing a real dispense→bill→pay
 chain's prescription scan and paid bill with working links; and a hospital
 logo upload round-tripped byte-for-byte through `saveHospitalLogo`/
 `/api/uploads` the same way prescription uploads were, then confirmed to
-appear on both the nav header and the printable bill view.
+appear on both the nav header and the printable bill view. The daily
+token/queue number's RLS policy was verified directly with `psql` (not
+assumed from the existing pattern): `hms_app` with no tenant context sees
+zero rows and can't insert against `daily_token_counters`, and a mismatched
+`hospital_id` in the raw `INSERT ... ON CONFLICT` is rejected; token
+generation was then verified in the browser across both visit-creation
+paths (combined register+visit, and "Create visit" for an existing
+patient), confirming sequential numbering (1, 2, 3) regardless of which
+path created the visit, and that queue ordering stays based on `visitDate`
+(appointment time) even when it diverges from token/creation order.
 
 **Operational notes**:
 
@@ -304,7 +317,7 @@ field would otherwise imply).
 
 ### Front desk registration (`src/app/front-desk`, `src/patients`, `src/visits`)
 
-Implements BRS FR-3.1–FR-3.6: search patients (`searchPatients`), register a
+Implements BRS FR-3.1–FR-3.8: search patients (`searchPatients`), register a
 new one with an auto-generated per-hospital ID (`registerPatient` +
 `generatePatientCode`), update demographics (`updatePatientDemographics`),
 create a visit assigned to a doctor (`createVisit`), and view the waiting
@@ -318,20 +331,93 @@ read-then-write, so concurrent registrations at the same hospital can't
 collide. Every write in this module also calls `recordAuditLog` in the same
 transaction (FR-2.5).
 
+**Doctor assignment and appointment scheduling are optional on the
+registration form itself**, not a forced second step: `registerPatientAction`
+registers the patient and, only if a doctor was chosen, also calls
+`createVisit` in the same transaction (combining FR-3.2 + FR-3.4 for the
+common walk-in case) -- leaving the doctor field blank just registers the
+patient, matching the BRS's original separation between registration and
+visit creation. The same doctor+appointment fields exist on the "Create
+visit" form for patients found via search (`createVisitAction`), since both
+paths funnel through the same `createVisit`. The appointment date/time is a
+plain `<input type="datetime-local">` reusing `Visit.visitDate` (no new
+column) -- defaults to now but is fully editable, so front desk can book a
+call-in patient for a specific future slot (e.g. an evening appointment
+requested in the morning); **queue and "next patient" ordering are based on
+this scheduled time, not check-in/token order** (see below).
+
+**Token/queue number (FR-3.7/FR-3.8)**: every visit gets an
+auto-assigned, display-only queue number via `generateTokenNumber`
+(`src/visits/token-number.ts`), shown in the front-desk waiting queue's
+"Token #" column. Three product decisions were made explicitly (not
+inferable from the FRs alone, don't relitigate without revisiting them):
+resets daily at **IST midnight** (`src/shared/ist-date.ts`'s
+`getISTDateOnly`, fixed regardless of the server's own timezone, since this
+is an Indian-market product); scoped **per hospital only**, not per
+doctor/department (one shared sequence, matching a single physical token
+dispenser at the front desk -- FR-3.8's "if applicable" per-doctor scoping
+was declined); and it is a **display/reference number only** -- it does
+NOT drive queue ordering, which stays based on `visitDate` (appointment
+time) so the scheduling feature above remains meaningful. A daily-resetting
+counter can't reuse the `Hospital.patientCodeSeq`/`billNumberSeq` pattern
+(a single column on the one-row-per-tenant `Hospital` table can't hold a
+per-day value), so it has its own table, `DailyTokenCounter`
+(`daily_token_counters`, RLS-protected like every other tenant-owned
+table), keyed by `(hospitalId, tokenDate)` and incremented atomically via
+`INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING` rather than a
+read-then-write -- verified directly (not just assumed from the pattern)
+that `hms_app` with no tenant context sees zero rows and can't insert, and
+that a mismatched `hospital_id` in the raw SQL is rejected by the same
+`WITH CHECK` clause, since this is the first raw-SQL statement in the
+codebase to touch an RLS-protected table (the existing atomic counters
+target `hospitals`, which has no RLS policy).
+
 Gated to the `FRONT_DESK` role via `requireSession(['FRONT_DESK'])` (see
 "Authentication" above) -- run `npm run prisma:seed` once first so a
 `FRONT_DESK` user exists to log in as.
 
 ### Doctor consultation (`src/app/doctor`, `src/visits`, `src/patients`)
 
-Implements BRS FR-4.1–FR-4.5: the doctor's queue for the day
-(`listVisitsForDoctor`, waiting + in-consultation so a doctor can resume one
-they left mid-visit), the visit detail screen aggregating patient
-demographics and full visit/prescription history (`getVisitDetail` +
-`getPatientHistory`), starting a consultation (`startConsultation`: WAITING →
-IN_CONSULTATION only), and saving free-text consultation notes
-(`saveConsultationNotes`, only while IN_CONSULTATION). Gated to the
-`DOCTOR` role via `requireSession(['DOCTOR'])` (see "Authentication" above).
+Implements BRS FR-4.1–FR-4.12: the doctor's home screen/queue for the day
+(`listVisitsForDoctor`, waiting + in-consultation + completed so a doctor
+can resume one they left mid-visit or reopen one just finished), the visit
+detail screen aggregating patient demographics and full visit/prescription
+history (`getVisitDetail` + `getPatientHistory`), starting a consultation
+(`startConsultation`: WAITING → IN_CONSULTATION only), and saving free-text
+consultation notes (`saveConsultationNotes`, only while IN_CONSULTATION).
+Gated to the `DOCTOR` role via `requireSession(['DOCTOR'])` (see
+"Authentication" above).
+
+**The home screen (FR-4.6–FR-4.12, added in BRS v0.3)** bounds
+`listVisitsForDoctor` to the IST calendar day (`getISTDayBoundsUTC`,
+`src/shared/ist-date.ts`) across all three statuses, rather than the
+narrower WAITING/IN_CONSULTATION-only, no-date-bound query it used before
+-- completed visits are now retained (dimmed via the `muted-section` CSS
+class, not removed) so the doctor can reopen one. Per-row token number
+(FR-3.7's daily counter, display-only), age (`calculateAge`,
+`src/patients/age.ts` -- a pure function over `dateOfBirth`, same "derived
+not stored" approach as `src/inventory/status.ts`'s low-stock/expiry
+flags), gender, and an explicit `StatusBadge` satisfy FR-4.7. The
+waiting/in-consultation/completed/total counts (FR-4.8) are derived from
+the one fetched list, no extra query. The search box (FR-4.9) reuses
+`searchPatients` exactly like `/patients` and `/front-desk`, linking results
+to the existing `/patients/[patientId]` longitudinal view rather than a new
+page. "Start next waiting patient" (FR-4.10, `src/app/doctor/actions.ts`'s
+`startNextWaitingAction`) picks the earliest-`visitDate` WAITING visit
+within today's IST bounds and claims it via `startConsultation` in one
+transaction (pick-then-claim atomicity, distinct from `startConsultation`'s
+own re-entrancy safety), then redirects into the visit detail screen --
+unlike `startConsultationAction` below, which is invoked *from* that detail
+page and just revalidates in place. **Queue/next-patient ordering is by
+`visitDate` (appointment time), not token number** -- a deliberate decision
+so last session's appointment-scheduling feature (front desk can book a
+future time slot) stays meaningful; a lower token can still be seen after a
+higher one if its scheduled time is later. FR-4.12's hospital branding +
+doctor's name/department are shown in the one shared nav header
+(`src/app/layout.tsx`) for every role, not a doctor-specific header --
+`department` was added to the signed-cookie `Session`
+(`src/shared/session.ts`) at login time for this, so existing sessions
+won't show it until their next login (12h TTL, no cookie migration done).
 
 `completeConsultation` (FR-4.5) requires a `Prescription` row to already
 exist for the visit before allowing IN_CONSULTATION → COMPLETED. It's now

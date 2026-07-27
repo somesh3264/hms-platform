@@ -62,7 +62,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
             <div className="app-header-user">
               <span>
-                {session.name} ({session.role.replace('_', ' ')})
+                {session.name} ({session.role.replace('_', ' ')}
+                {session.department ? ` — ${session.department}` : ''})
               </span>
               <form action={logoutAction}>
                 <button type="submit">Log out</button>

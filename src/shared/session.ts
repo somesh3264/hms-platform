@@ -17,6 +17,7 @@ interface SessionPayload {
   hospitalId: string;
   role: UserRole;
   name: string;
+  department?: string; // FR-4.12: shown alongside name in the nav header
   exp: number; // epoch seconds
 }
 
@@ -25,6 +26,7 @@ export interface Session {
   actorId: string;
   role: UserRole;
   name: string;
+  department?: string;
 }
 
 // Where each role lands after login / on `/`. SUPER_ADMIN has no screen yet
@@ -80,7 +82,8 @@ function decode(token: string): SessionPayload | null {
       typeof payload?.hospitalId !== 'string' ||
       typeof payload?.role !== 'string' ||
       typeof payload?.name !== 'string' ||
-      typeof payload?.exp !== 'number'
+      typeof payload?.exp !== 'number' ||
+      (payload?.department !== undefined && typeof payload.department !== 'string')
     ) {
       return null;
     }
@@ -98,12 +101,14 @@ export async function createSession(user: {
   hospitalId: string;
   role: UserRole;
   name: string;
+  department?: string;
 }): Promise<void> {
   const payload: SessionPayload = {
     sub: user.id,
     hospitalId: user.hospitalId,
     role: user.role,
     name: user.name,
+    department: user.department,
     exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
   };
 
@@ -142,6 +147,7 @@ export async function getSession(): Promise<Session | null> {
     actorId: payload.sub,
     role: payload.role,
     name: payload.name,
+    department: payload.department,
   };
 }
 

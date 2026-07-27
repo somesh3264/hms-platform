@@ -24,6 +24,12 @@ export async function loginAction(formData: FormData): Promise<void> {
     redirect('/login?error=1');
   }
 
-  await createSession({ id: user.id, hospitalId, role: user.role, name: user.name });
+  await createSession({
+    id: user.id,
+    hospitalId,
+    role: user.role,
+    name: user.name,
+    department: user.department ?? undefined,
+  });
   redirect(ROLE_HOME[user.role]);
 }

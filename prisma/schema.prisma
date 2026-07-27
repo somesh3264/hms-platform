@@ -41,14 +41,15 @@ model Hospital {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users         User[]
-  patients      Patient[]
-  visits        Visit[]
-  prescriptions Prescription[]
-  medicines     Medicine[]
-  bills         Bill[]
-  billLineItems BillLineItem[]
-  auditLogs     AuditLog[]
+  users              User[]
+  patients           Patient[]
+  visits             Visit[]
+  prescriptions      Prescription[]
+  medicines          Medicine[]
+  bills              Bill[]
+  billLineItems      BillLineItem[]
+  auditLogs          AuditLog[]
+  dailyTokenCounters DailyTokenCounter[]
 
   @@map("hospitals")
 }
@@ -156,6 +157,12 @@ model Visit {
   // Free-text notes captured by the doctor alongside the scanned prescription (FR-4.4).
   consultationNotes String? @map("consultation_notes")
 
+  // Daily front-desk queue/token number (FR-3.7/FR-3.8), assigned at visit
+  // creation time via DailyTokenCounter -- see src/visits/token-number.ts.
+  // Nullable: rows created before this field existed have none. Display
+  // only -- queue/next-patient ordering stays based on visitDate, not this.
+  tokenNumber Int? @map("token_number")
+
   visitDate DateTime @default(now()) @map("visit_date")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -166,6 +173,24 @@ model Visit {
   @@index([hospitalId, patientId])
   @@index([hospitalId, doctorId])
   @@map("visits")
+}
+
+// Backs Visit.tokenNumber (FR-3.7/FR-3.8): one row per (hospital, calendar
+// day in IST -- see src/shared/ist-date.ts), incremented atomically via
+// `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING` in
+// src/visits/token-number.ts rather than a read-then-write, so concurrent
+// front-desk registrations can't collide. Scoped per hospital only, not per
+// doctor/department -- matches a single physical token dispenser at the
+// front desk. A pure counter row, not a user-facing entity, so the
+// composite key is the primary key rather than a separate id.
+model DailyTokenCounter {
+  hospitalId String   @map("hospital_id")
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+  tokenDate  DateTime @map("token_date") @db.Date
+  lastToken  Int      @default(0) @map("last_token")
+
+  @@id([hospitalId, tokenDate])
+  @@map("daily_token_counters")
 }
 
 enum PrescriptionStatus {

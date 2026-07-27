@@ -4,9 +4,18 @@ import { listWaitingQueue } from '@/visits';
 
 import { createVisitAction, registerPatientAction } from './actions';
 
+// Local-time "YYYY-MM-DDTHH:mm" for an <input type="datetime-local">
+// defaultValue -- that input has no timezone concept, it's the server's
+// wall-clock time, same as how the browser will hand it back on submit.
+function toDateTimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export default async function FrontDeskPage({ searchParams }: { searchParams: { q?: string } }) {
   const { hospitalId } = await requireSession(['FRONT_DESK']);
   const query = searchParams.q?.trim() ?? '';
+  const now = toDateTimeLocalValue(new Date());
 
   const { searchResults, queue, doctors } = await withHospitalContext(hospitalId, async (tx) => {
     const searchResults = query ? await searchPatients(tx, { hospitalId, query }) : [];
@@ -71,6 +80,10 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
                         ))}
                       </select>
                       <input type="text" name="department" placeholder="Department (optional)" />
+                      <label>
+                        Appointment date &amp; time
+                        <input type="datetime-local" name="visitDate" defaultValue={now} required />
+                      </label>
                       <button type="submit">Create visit</button>
                     </form>
                   </td>
@@ -121,6 +134,21 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
             <input type="checkbox" name="consentDigitalDelivery" />
             Patient consents to digital delivery of bills/prescriptions
           </label>
+          <label>
+            Assign doctor (optional — creates today&apos;s visit immediately)
+            <select name="doctorId" defaultValue="">
+              <option value="">No appointment yet</option>
+              {doctors.map((doctor) => (
+                <option key={doctor.id} value={doctor.id}>
+                  {doctor.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Appointment date &amp; time
+            <input type="datetime-local" name="visitDate" defaultValue={now} />
+          </label>
           <button type="submit">Register patient</button>
         </form>
       </section>
@@ -130,6 +158,7 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
         <table>
           <thead>
             <tr>
+              <th>Token #</th>
               <th>Patient</th>
               <th>Doctor</th>
               <th>Department</th>
@@ -139,11 +168,12 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
           <tbody>
             {queue.length === 0 && (
               <tr>
-                <td colSpan={4}>No patients waiting.</td>
+                <td colSpan={5}>No patients waiting.</td>
               </tr>
             )}
             {queue.map((visit) => (
               <tr key={visit.id}>
+                <td>{visit.tokenNumber ?? '—'}</td>
                 <td>
                   {visit.patient.firstName} {visit.patient.lastName} ({visit.patient.patientCode})
                 </td>

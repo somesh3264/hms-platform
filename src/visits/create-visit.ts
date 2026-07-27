@@ -2,6 +2,8 @@ import type { Prisma, Visit } from '@prisma/client';
 
 import { recordAuditLog } from '@/shared';
 
+import { generateTokenNumber } from './token-number';
+
 export interface CreateVisitInput {
   hospitalId: string;
   actorId: string;
@@ -33,6 +35,8 @@ export async function createVisit(
     throw new Error(`Active doctor not found: ${input.doctorId}`);
   }
 
+  const tokenNumber = await generateTokenNumber(tx, input.hospitalId);
+
   const visit = await tx.visit.create({
     data: {
       hospitalId: input.hospitalId,
@@ -40,6 +44,7 @@ export async function createVisit(
       doctorId: input.doctorId,
       department: input.department,
       visitDate: input.visitDate ?? new Date(),
+      tokenNumber,
     },
   });
 

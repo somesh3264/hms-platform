@@ -15,7 +15,10 @@ export const metadata: Metadata = {
 
 const ROLE_LINKS: Record<UserRole, { href: string; label: string }[]> = {
   SUPER_ADMIN: [],
-  HOSPITAL_ADMIN: [{ href: '/admin/hospital', label: 'Hospital Settings' }],
+  HOSPITAL_ADMIN: [
+    { href: '/admin/hospital', label: 'Hospital Settings' },
+    { href: '/admin/users', label: 'Manage Users' },
+  ],
   FRONT_DESK: [{ href: '/front-desk', label: 'Front Desk' }],
   DOCTOR: [{ href: '/doctor', label: 'Doctor Queue' }],
   PHARMACIST: [

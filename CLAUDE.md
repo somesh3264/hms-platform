@@ -25,10 +25,13 @@ modules — front desk registration (BRS FR-3.1–FR-3.6), doctor consultation
 the in-house medical store / pharmacy (BRS FR-6.1–FR-6.10), and digital
 billing (BRS FR-7.1–FR-7.7) — plus real authentication (BRS FR-2.4, see
 "Authentication" below), the patient longitudinal view (BRS FR-8.1–FR-8.3),
-and a minimal hospital branding admin screen (BRS FR-1.2/FR-1.3) are
-implemented. Explicitly not yet built: Super Admin hospital onboarding/
-subscription management (FR-1.1/FR-1.6), Hospital Admin user CRUD (FR-2.2),
-reporting/dashboards (FR-9), and notifications/digital delivery (FR-10).
+a minimal hospital branding admin screen (BRS FR-1.2/FR-1.3), and Hospital
+Admin user management (BRS FR-2.2) are implemented. Explicitly not yet
+built: Super Admin hospital onboarding/subscription management
+(FR-1.1/FR-1.6) -- of questionable relevance now that the product is
+deployed one hospital at a time rather than as a shared multi-hospital
+instance, see "Authentication" below -- reporting/dashboards (FR-9), and
+notifications/digital delivery (FR-10).
 All migrations have been applied via `prisma migrate
 deploy`/`prisma migrate dev` against a real local Postgres and verified end
 to end (not just typechecked) — including that `hms_app` (no context set)
@@ -115,13 +118,12 @@ chosen and wired into `package.json` first.
 
 ### Module layout (`src/`)
 
-Code is organized by domain, one top-level folder per module. `tenants` and
-`users` each hold one real function so far (see below); `patients`, `visits`,
-`prescriptions`, `inventory`, and `billing` hold the fuller set of
+Code is organized by domain, one top-level folder per module. `patients`,
+`visits`, `prescriptions`, `inventory`, and `billing` hold the fuller set of
 data-access functions (see the module sections below):
 
-- `tenants` — `updateHospitalBranding` (hospital branding/config, maps to the `Hospital` model); Super Admin onboarding/subscription management (FR-1.1/FR-1.6) is not yet built
-- `users` — `authenticateUser` (FR-2.4 login); staff accounts, roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF); Hospital Admin user CRUD (FR-2.2) is not yet built
+- `tenants` — `updateHospitalBranding`, `resolveCurrentHospitalId` (hospital branding/config, maps to the `Hospital` model); Super Admin onboarding/subscription management (FR-1.1/FR-1.6) is not built and of questionable relevance under the current single-hospital-per-deployment model
+- `users` — `authenticateUser` (FR-2.4 login), `listUsers`/`createUser`/`updateUser`/`resetUserPassword` (FR-2.2); roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF)
 - `patients` — `searchPatients`, `registerPatient`, `updatePatientDemographics`, `generatePatientCode`, `getPatientHistory` (`Patient`)
 - `visits` — `createVisit`, `listWaitingQueue`, `listVisitsForDoctor`, `getVisitDetail`, `startConsultation`, `saveConsultationNotes`, `completeConsultation` (`Visit`)
 - `prescriptions` — `uploadPrescription`, `replacePrescription`, `listPharmacyQueue`, `getPrescriptionDetail` (`Prescription`)
@@ -275,11 +277,30 @@ called the stub it replaced, just with an explicit allowed-roles list.
 nav header (hospital branding, current user, role-appropriate links, log
 out).
 
-**Not yet built**: Hospital Admin creating/editing/deactivating other users
-(FR-2.2) -- only the 5 users `prisma/seed.mjs` creates can log in today;
-Super Admin tenant onboarding (FR-1.1/FR-1.6); fine-grained per-screen
-permissions beyond the role-gated routes above (FR-2.3 is satisfied at the
-route level only).
+**Not yet built**: Super Admin tenant onboarding (FR-1.1/FR-1.6) -- moot
+under the current single-hospital-per-deployment model (see
+`resolveCurrentHospitalId` above) unless that model changes; fine-grained
+per-screen permissions beyond the role-gated routes above (FR-2.3 is
+satisfied at the route level only).
+
+### Hospital Admin user management (`src/app/admin/users`, `src/users`)
+
+Implements BRS FR-2.2: a `HOSPITAL_ADMIN`-gated screen to create, edit, and
+deactivate staff accounts within their own hospital. `/admin/users` lists
+every user (`listUsers`) and has a creation form (`createUser`, FR-2.1's six
+roles minus `SUPER_ADMIN` -- a platform-level role a Hospital Admin
+shouldn't be able to grant, see `ASSIGNABLE_ROLES`); `/admin/users/[userId]`
+edits name/email/role/department/active-status (`updateUser`) and resets a
+password (`resetUserPassword`) -- there's no self-service "forgot password"
+flow, so this is the only recovery path for a locked-out account. Both
+`createUser` and `updateUser` pre-check for a duplicate `[hospitalId,
+email]` before writing, rather than relying on the DB's unique constraint
+to reject it, so the failure is a clear thrown message instead of a raw
+Prisma error. `updateUser` also rejects deactivating your own account
+(checked directly, not just via the edit page's disabled checkbox, since an
+HTML `disabled` checkbox never submits its value at all -- the action forces
+`isActive: true` for a self-edit rather than trusting what the missing form
+field would otherwise imply).
 
 ### Front desk registration (`src/app/front-desk`, `src/patients`, `src/visits`)
 

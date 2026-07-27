@@ -15,6 +15,8 @@ Front Desk Registration • Doctor Consultation • Digital Prescription Routing
 |---|---|---|---|
 | 0.1 (Draft) | 24 Jul 2026 | Product/BA Team | Initial Business Requirement Specification (BRS) for review |
 | 0.2 (Draft) | 24 Jul 2026 | Product/BA Team | Incorporated stakeholder decisions on scope, compliance, inventory alerts, subscription model, and payment methods (Section 8) |
+| 0.3 (Draft) | 28 Jul 2026 | Product/BA Team | Added front desk token auto-assignment (FR-3.7, FR-3.8) and doctor home screen requirements (FR-4.6–FR-4.12) |
+| 0.4 (Draft) | 28 Jul 2026 | Product/BA Team | Added subdomain-based hospital login resolution (FR-1.7) |
 
 ---
 
@@ -105,6 +107,7 @@ Priority: **M** = Must Have (MVP), **S** = Should Have, **C** = Could Have / fut
 | FR-1.4 | The system shall allow basic theme personalization (e.g. primary color) per hospital. | S |
 | FR-1.5 | The system shall ensure that data belonging to one hospital (patients, users, inventory, bills) is never visible to another hospital. | M |
 | FR-1.6 | The system shall allow a platform-level Super Admin to manage the list of onboarded hospitals and their subscription/status (active/suspended). | M |
+| FR-1.7 | The system shall assign each onboarded hospital a unique subdomain (e.g. sunrise.hmsapp.com), and shall resolve which hospital a user is logging into based on that subdomain, without requiring a manual hospital-selection step on the login screen. | M |
 
 ### 3.2 User & Role Management
 
@@ -126,6 +129,8 @@ Priority: **M** = Must Have (MVP), **S** = Should Have, **C** = Could Have / fut
 | FR-3.4 | Front desk staff shall be able to create a new visit/encounter for a patient and assign it to a specific doctor/department. | M |
 | FR-3.5 | The system shall maintain a queue/list view showing which patients are waiting for which doctor. | S |
 | FR-3.6 | The system shall allow front desk staff to update a patient's demographic details on subsequent visits. | M |
+| FR-3.7 | The system shall auto-assign a unique token/visit number to each patient at the time of front desk registration, without requiring manual entry by staff. | M |
+| FR-3.8 | The token number shall reset and restart sequentially each day, scoped per hospital (tenant) and, if applicable, per doctor/department queue. | S |
 
 ### 3.4 Doctor Consultation Module
 
@@ -136,6 +141,15 @@ Priority: **M** = Must Have (MVP), **S** = Should Have, **C** = Could Have / fut
 | FR-4.3 | The doctor shall be able to open a specific patient's visit to begin consultation (marking status as "in consultation"). | M |
 | FR-4.4 | The doctor shall be able to capture brief consultation notes (free text) in addition to the scanned prescription (optional, non-mandatory field). | S |
 | FR-4.5 | The doctor shall be able to mark a consultation as complete once the prescription is uploaded. | M |
+| FR-4.6 | On login, the doctor shall land on a home screen showing their queue of patients for the current day, without needing to navigate there separately. | M |
+| FR-4.7 | The home screen shall display, for each queued patient: token/visit number, patient name, age, gender, and current status (waiting, in consultation, or completed). | M |
+| FR-4.8 | The home screen shall show a summary count of patients waiting, in consultation, completed, and total for the day. | S |
+| FR-4.9 | The home screen shall provide a search field allowing the doctor to look up any patient by name, ID, or phone number, including patients not in today's queue (e.g. walk-ins or past patients). | M |
+| FR-4.10 | The home screen shall provide a one-click action to begin consultation with the next waiting patient in queue order. | S |
+| FR-4.11 | The home screen shall retain completed consultations in the day's list (visually de-emphasized) so the doctor can reopen them if needed, rather than removing them once done. | S |
+| FR-4.12 | The home screen header shall display the hospital's branding (name/logo per tenant configuration) and the logged-in doctor's name and department. | M |
+
+*Note: patient-level clinical flags (e.g. allergies) are not shown on the home screen queue view; they remain part of the patient record surfaced during consultation (FR-4.1).*
 
 ### 3.5 Prescription Digitization & Routing
 

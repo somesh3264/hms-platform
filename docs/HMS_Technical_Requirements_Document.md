@@ -15,6 +15,8 @@ Low-Maintenance, Low-Cost Architecture — Built and Maintained with Claude Code
 | Version | Date | Author | Description |
 |---|---|---|---|
 | 0.1 (Draft) | 24 Jul 2026 | Engineering/BA Team | Initial Technical Requirements Document (TRD), derived from the approved Business Requirement Specification v0.2 |
+| 0.2 (Draft) | 28 Jul 2026 | Engineering/BA Team | Added Section 6 (Multi-Tenancy & Theming Mechanism); renumbered subsequent sections; reflected doctor home screen as default route (BRS FR-4.6–FR-4.12) |
+| 0.3 (Draft) | 28 Jul 2026 | Engineering/BA Team | Resolved tenant login resolution to subdomain-based (BRS FR-1.7); added Section 6.4 (Subdomain-Based Tenant Resolution) |
 
 ---
 
@@ -33,12 +35,12 @@ This Technical Requirements Document (TRD) translates the approved Business Requ
 
 ### 1.3 Key Assumption on "Built Completely Using Claude"
 This is interpreted, and the rest of this document is written on that basis, as follows:
-- The application's code, tests, documentation, and infrastructure configuration will be authored and maintained using **Claude Code**, in place of a large traditional in-house development team. This is a development-process decision that reduces engineering headcount cost — see Section 10.
+- The application's code, tests, documentation, and infrastructure configuration will be authored and maintained using **Claude Code**, in place of a large traditional in-house development team. This is a development-process decision that reduces engineering headcount cost — see Section 11.
 - It does **not** mean the live, production hospital application calls the Claude API at runtime for its core workflows (registration, prescription upload, billing). Those are deterministic business processes built as regular application logic — cheaper, faster, and more reliable to run than routing them through an AI model at runtime.
-- Optional future AI-assisted features (e.g. OCR/summarization of scanned prescriptions using Claude's vision capability, flagged as out of scope in the BRS) could later call the Claude API at runtime — that would add a small, usage-based API cost at that time, separate from hosting cost. Noted as a future option in Section 12, not part of the current build.
+- Optional future AI-assisted features (e.g. OCR/summarization of scanned prescriptions using Claude's vision capability, flagged as out of scope in the BRS) could later call the Claude API at runtime — that would add a small, usage-based API cost at that time, separate from hosting cost. Noted as a future option in Section 13, not part of the current build.
 
 ### 1.4 Relationship to the Business Requirement Specification
-Every functional requirement (FR-x.x) and non-functional requirement in the BRS is expected to be satisfied by the architecture in this document. Section 4 maps BRS modules to technical components; Section 8 maps BRS non-functional/compliance requirements to concrete technical controls.
+Every functional requirement (FR-x.x) and non-functional requirement in the BRS is expected to be satisfied by the architecture in this document. Section 4 maps BRS modules to technical components; Section 9 maps BRS non-functional/compliance requirements to concrete technical controls.
 
 ---
 
@@ -48,7 +50,7 @@ Every functional requirement (FR-x.x) and non-functional requirement in the BRS 
 A **modular monolith**: a single, well-organized application codebase and a single deployable unit, internally divided into clear modules that mirror the BRS (Registration, Consultation, Prescription, Pharmacy/Inventory, Billing, Admin/Branding). Chosen over microservices because:
 - One service to deploy, monitor, patch, and pay for, instead of many.
 - No inter-service network calls, message brokers, or service-mesh tooling to build, run, or troubleshoot.
-- Module boundaries are still kept clean in code, so parts of the system could be split out later if genuine scale ever requires it (Section 12) — the cost saving is in not paying for that complexity before it's needed.
+- Module boundaries are still kept clean in code, so parts of the system could be split out later if genuine scale ever requires it (Section 13) — the cost saving is in not paying for that complexity before it's needed.
 
 ### 2.2 High-Level Layers
 
@@ -84,7 +86,7 @@ All choices are open-source/no-license-fee and widely supported, to avoid recurr
 | ORM/Migrations | Prisma | Type-safe queries and version-controlled schema migrations; makes Claude-Code-driven schema changes safer and auditable. |
 | File/Object Storage | S3-compatible object storage (e.g. Cloudflare R2 class of service) | Pay only for storage used, no server to maintain, no data-egress fee on the R2 class of service. |
 | Authentication | Self-hosted session/JWT-based auth with hashed passwords (bcrypt/argon2) and role middleware | Avoids per-user recurring fees charged by hosted identity providers; still industry-standard, well-audited libraries. |
-| Hosting/Compute | Single small Linux server (VM/VPS), Dockerized app — see Section 6 | Predictable flat monthly cost; one shared server serves all tenants. |
+| Hosting/Compute | Single small Linux server (VM/VPS), Dockerized app — see Section 7 | Predictable flat monthly cost; one shared server serves all tenants. |
 | Reverse Proxy/SSL | Caddy or Nginx with Let's Encrypt | Free, auto-renewing SSL certificates; no paid load-balancer product needed at this scale. |
 | Background/Scheduled Jobs | In-process scheduler (e.g. node-cron) for tasks like low-stock checks | No separate message-queue/worker infrastructure needed at current scale. |
 | SMS/WhatsApp Delivery | Pay-as-you-go Indian messaging API provider | No fixed monthly platform fee; cost scales with actual messages sent, matching FR-10.3. |
@@ -99,10 +101,10 @@ All choices are open-source/no-license-fee and widely supported, to avoid recurr
 
 | BRS Module | Technical Implementation |
 |---|---|
-| 3.1 Multi-Tenant & Branding | Tenant configuration table (name, logo file reference, theme color, address); logo served from object storage; theme applied via CSS variables at render time. |
+| 3.1 Multi-Tenant & Branding | Tenant configuration table (name, logo file reference, theme color, address); logo served from object storage; theme applied via CSS variables at render time — see Section 6 for the full mechanism and non-negotiable constraints. |
 | 3.2 User & Role Management | Users table scoped by hospital_id; role field drives UI navigation and API-level authorization checks; audit log table records sensitive actions. |
 | 3.3 Front Desk / Registration | Patient and Visit modules; server-side search on name/phone/patient ID with hospital-scoped indexes. |
-| 3.4 Doctor Consultation | Visit detail view aggregating patient history, prior prescriptions, and notes; queue view filtered by assigned doctor and status. |
+| 3.4 Doctor Consultation | Visit detail view aggregating patient history, prior prescriptions, and notes; queue view filtered by assigned doctor and status; home screen (FR-4.6–FR-4.12) is the doctor's default post-login route — see Section 6.5. |
 | 3.5 Prescription Digitization & Routing | Upload endpoint accepts image/PDF, stores it in object storage, writes a Prescription record linked to the Visit, and flips a status flag the Pharmacy queue reads — this is the "automatic routing" (no message broker needed at this scale). |
 | 3.6 In-House Medical Store | Inventory table per hospital with quantity and configurable low-stock threshold; dispensing decrements stock in the same transaction that marks the prescription dispensed. |
 | 3.7 Digital Billing | Bill/Invoice module generated from dispensed line items plus optional consultation fee; GST calculation and PDF generation server-side; UPI/Cash payment reference recorded against the bill. |
@@ -131,9 +133,61 @@ Detailed field-level schema is maintained as versioned Prisma migration files in
 
 ---
 
-## 6. Hosting & Infrastructure Plan
+## 6. Multi-Tenancy & Theming Mechanism
 
-### 6.1 Deployment Options Compared
+This section defines the concrete mechanism by which the single-codebase, multi-hospital requirement (BRS Section 1.5, Product Vision) is satisfied at the presentation layer — closing a gap left open by Sections 2.3 and 5, which cover data-level tenancy but not how cosmetic branding is actually applied.
+
+### 6.1 Restated Requirement
+One deployed application instance (one codebase, one running service, one database) serves every hospital (tenant). Onboarding a new hospital must never require writing or forking code — only entering configuration data. The only differences a hospital's staff or patients see across tenants are cosmetic: hospital name, logo, primary/accent colors, address and contact details, department names, and the list of doctors. All functional behavior — screens, workflow, business logic, validation rules — is identical across every tenant.
+
+### 6.2 Tenant Configuration Table
+A single `tenant_config` table (or equivalent structured record per tenant) holds every piece of cosmetic and identity information for a hospital:
+
+| Field | Description | Priority |
+|---|---|---|
+| Hospital display name | Shown in UI header and on printed documents | Must |
+| Logo image | Uploaded, stored in object storage, referenced by URL | Must |
+| Primary/accent brand colors | Applied as CSS custom properties at runtime | Must |
+| Address & contact details | Shown on printed bills/prescriptions | Must |
+| Department name list | Editable per hospital, not hardcoded | Should |
+| Doctor roster | Names/specialties — already modeled as tenant-scoped staff records, surfaced here for clarity | Must |
+| Footer/legal text | Optional, e.g. registration number on printed documents | Could |
+
+### 6.3 Runtime Application of Branding
+Onboarding a new hospital is a configuration action, never a code change or rebuild:
+1. A Super Admin creates a new Tenant record and populates `tenant_config` — name, logo, colors, address, initial department and doctor list — and assigns the hospital its unique subdomain (BRS FR-1.7), e.g. `sunrise.hmsapp.com`.
+2. On every request, the application resolves the active tenant from the request's subdomain and loads that tenant's config once per session. No hospital-selection step is shown on the login screen — the subdomain alone determines which hospital a user is logging into.
+3. The frontend reads config values to render the logo, apply the color theme via CSS custom properties set at runtime (not compiled per hospital), and display the correct hospital name, address, and doctor list on every screen and printed document.
+4. No application restart, redeploy, or code branch is required to onboard a hospital or change its branding later — updating `tenant_config` takes effect immediately.
+
+This constrains the Next.js frontend choice in Section 3: theming must be data-driven at runtime (CSS variables sourced from `tenant_config`), not a build-time/compiled-per-hospital theme.
+
+### 6.4 Subdomain-Based Tenant Resolution
+Per BRS FR-1.7, subdomain is the sole mechanism for resolving which hospital a login request belongs to:
+- Each hospital is assigned a unique subdomain at onboarding (e.g. `sunrise.hmsapp.com`, `citycare.hmsapp.com`), stored against its Tenant record.
+- A wildcard DNS record (`*.hmsapp.com`) and a wildcard SSL certificate (via Let's Encrypt, matching the existing reverse-proxy setup in Section 3) cover all current and future hospital subdomains without per-hospital certificate or DNS work.
+- The reverse proxy/application middleware reads the subdomain from the incoming request's `Host` header, resolves it to a `hospital_id` before the login form renders, and scopes the entire session (including Row-Level Security) to that tenant from that point on.
+- A hospital's subdomain can be changed by the Super Admin without a redeploy — it is configuration (part of `tenant_config`), not a code or infrastructure change per hospital.
+- If a request arrives on an unrecognized subdomain, the system shows a generic "hospital not found" page rather than falling through to any default tenant.
+
+### 6.5 Non-Negotiable Constraints
+
+| ID | Requirement | Priority |
+|---|---|---|
+| MT-1 | Zero forked code paths: no `if (hospital == X)` branching anywhere in application logic | Must |
+| MT-2 | Zero per-tenant deployments: exactly one running instance of the application serves all tenants | Must |
+| MT-3 | Onboarding a hospital requires configuration only, never a code commit or redeploy | Must |
+| MT-4 | Every tenant-scoped data access enforces `hospital_id` isolation at the data-access layer (RLS), not per-screen | Must |
+| MT-5 | Theming changes (e.g. updated logo or colors) apply without an application rebuild | Must |
+
+### 6.6 Doctor Home Screen — Default Route
+Per BRS FR-4.6–FR-4.12, the doctor's post-login default route is the home screen (today's queue), not a blank dashboard or a manual navigation step. This is implemented as the default authenticated route for the Doctor role in the Next.js routing layer, distinct from the Front Desk and Pharmacy/Billing default routes.
+
+---
+
+## 7. Hosting & Infrastructure Plan
+
+### 7.1 Deployment Options Compared
 
 |  | Option A — Self-Managed VPS | Option B — Managed PaaS |
 |---|---|---|
@@ -144,12 +198,12 @@ Detailed field-level schema is maintained as versioned Prisma migration files in
 
 Either option keeps the same application code and Docker packaging, so switching later is a configuration change, not a rebuild.
 
-### 6.2 Environments
+### 7.2 Environments
 - **Production:** the live multi-tenant application used by all onboarded hospitals.
 - **Staging/Preview:** a lightweight environment (can be spun up on-demand rather than run continuously) used to verify changes before they reach production.
 - **Local development:** run via Docker Compose on a developer's machine, mirroring production configuration.
 
-### 6.3 Indicative Monthly Running Cost (Platform-Wide, Not Per Hospital)
+### 7.3 Indicative Monthly Running Cost (Platform-Wide, Not Per Hospital)
 Indicative figures, to be validated with actual vendor pricing at build time. All costs are platform-wide — shared across every hospital on the platform.
 
 | Cost Item | Indicative Monthly Cost (USD) | Notes |
@@ -166,26 +220,26 @@ Indicative figures, to be validated with actual vendor pricing at build time. Al
 
 ---
 
-## 7. Integrations
+## 8. Integrations
 
-### 7.1 Prescription Capture (Scanner/Camera)
+### 8.1 Prescription Capture (Scanner/Camera)
 - The upload screen accepts files from any connected document scanner's driver-produced file (image/PDF) or from a tablet/phone camera capture, avoiding dependency on any single scanner brand or paid scanning SDK.
 - Client-side image compression before upload keeps storage and bandwidth cost low.
 
-### 7.2 SMS / WhatsApp / Email Delivery
+### 8.2 SMS / WhatsApp / Email Delivery
 - A provider abstraction in code allows switching providers if pricing changes, avoiding lock-in.
 - Email delivery (for bill/prescription copies) can use a free-tier transactional email service at current volumes.
 
-### 7.3 UPI & Cash Payment Recording
+### 8.3 UPI & Cash Payment Recording
 - Per BRS FR-7.5, the system records that a UPI or Cash payment was made against a bill (amount, method, reference/UTR number, timestamp) — staff enter this after collecting payment via the hospital's existing UPI QR code or in cash.
 - Avoids the monthly/percentage fees of a full payment-gateway integration entirely.
 
-### 7.4 GST-Compliant Invoicing
+### 8.4 GST-Compliant Invoicing
 - Bill/invoice PDFs generated server-side with hospital details, GSTIN (if applicable), itemized medicines/services, tax breakup, and total — using an open-source PDF generation library.
 
 ---
 
-## 8. Security & Compliance Implementation
+## 9. Security & Compliance Implementation
 
 | BRS Requirement | Technical Control |
 |---|---|
@@ -202,7 +256,7 @@ Indicative figures, to be validated with actual vendor pricing at build time. Al
 
 ---
 
-## 9. DevOps & CI/CD
+## 10. DevOps & CI/CD
 - All application code, database migrations, and infrastructure configuration are kept in a single version-controlled Git repository — editable and reviewable through Claude Code.
 - GitHub Actions runs automated tests on every change and deploys to production only after tests pass.
 - Given expected traffic levels, a brief restart-based deploy is acceptable and avoids the added cost/complexity of a zero-downtime blue-green setup; revisit if usage grows.
@@ -210,30 +264,30 @@ Indicative figures, to be validated with actual vendor pricing at build time. Al
 
 ---
 
-## 10. Development & Maintenance Approach (Claude Code)
+## 11. Development & Maintenance Approach (Claude Code)
 
-### 10.1 Build Approach
+### 11.1 Build Approach
 - The application is built primarily by directing Claude Code against the codebase: implementing modules, writing tests, producing/maintaining documentation.
 - A lean human role (a single technical lead/reviewer) sets direction, reviews and approves changes before they merge, and handles judgment calls Claude Code should not make unsupervised — security-sensitive changes, production data operations, compliance-related decisions.
 
-### 10.2 Testing Strategy
+### 11.2 Testing Strategy
 - Automated tests (unit and integration) are written alongside each feature and run in CI on every change.
 - Core flows carrying the highest test priority: patient registration, prescription routing, stock deduction on dispensing, and bill totals.
 
-### 10.3 Ongoing Maintenance Workflow
+### 11.3 Ongoing Maintenance Workflow
 1. A bug or change request is captured (e.g. as a tracked issue).
 2. Claude Code is directed to investigate and implement the fix/change, including updating or adding tests.
 3. The human technical lead reviews the change, particularly for security, data-isolation, and compliance impact.
-4. CI runs the automated test suite; on success, the change deploys via the pipeline in Section 9.
+4. CI runs the automated test suite; on success, the change deploys via the pipeline in Section 10.
 5. For urgent production issues, the same workflow applies on an expedited basis rather than through undocumented manual server changes.
 
-### 10.4 Limitations to Plan Around
+### 11.4 Limitations to Plan Around
 - AI-assisted development speeds up building and maintaining code, but does not replace a qualified human sign-off on security-sensitive and compliance-sensitive changes.
 - Periodic independent security review is recommended before go-live and at a sensible cadence afterward.
 
 ---
 
-## 11. Risks & Mitigations
+## 12. Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -245,7 +299,7 @@ Indicative figures, to be validated with actual vendor pricing at build time. Al
 
 ---
 
-## 12. Scalability & Future Roadmap
+## 13. Scalability & Future Roadmap
 - Vertical scaling first: increase the VPS's CPU/RAM as tenant/data volume grows — cheapest scaling step, no architecture change.
 - Move to a managed Postgres instance (still a single database with RLS) once backup/uptime requirements outgrow self-managed comfort.
 - Split out the highest-load module (most likely reporting/analytics) into its own service only if and when it actually contends with core transactional traffic.
@@ -254,7 +308,7 @@ Indicative figures, to be validated with actual vendor pricing at build time. Al
 
 ---
 
-## 13. Open Items for Confirmation
+## 14. Open Items for Confirmation
 1. Confirm Option A (self-managed VPS) vs Option B (managed PaaS) as the initial hosting choice — this document recommends Option A on cost grounds.
 2. Confirm the preferred SMS/WhatsApp provider for digital delivery of bills/prescriptions, as pricing and WhatsApp Business API approval timelines vary by provider.
 3. Confirm data-retention duration for patient records and prescription scans, to finalize the backup/retention and DPDP-aligned deletion policy.
@@ -262,8 +316,8 @@ Indicative figures, to be validated with actual vendor pricing at build time. Al
 
 ---
 
-## 14. Next Steps
-1. Confirm the open items in Section 13.
+## 15. Next Steps
+1. Confirm the open items in Section 14.
 2. Set up the version-controlled repository, base project scaffold, and CI/CD pipeline.
 3. Define the initial Prisma schema and Row-Level Security policies for the entities in Section 5.
 4. Begin Claude-Code-driven build of the MVP modules in BRS priority order (Must Have items first), with automated tests from the outset.

@@ -1,9 +1,17 @@
 import { DEFAULT_TAX_PERCENT } from '@/billing';
 import { requireSession, withHospitalContext } from '@/shared';
 
+import { FlashMessage } from '@/app/components/FlashMessage';
+
 import { generateBillAction } from './actions';
 
-export default async function NewBillPage({ params }: { params: { visitId: string } }) {
+export default async function NewBillPage({
+  params,
+  searchParams,
+}: {
+  params: { visitId: string };
+  searchParams: { error?: string };
+}) {
   const { hospitalId } = await requireSession(['BILLING_STAFF']);
 
   const { visit, unbilledItems } = await withHospitalContext(hospitalId, async (tx) => {
@@ -25,6 +33,8 @@ export default async function NewBillPage({ params }: { params: { visitId: strin
         Generate bill — {visit.patient.firstName} {visit.patient.lastName} (
         {visit.patient.patientCode})
       </h1>
+
+      <FlashMessage error={searchParams.error} />
 
       <section>
         <h2>Dispensed medicines</h2>

@@ -7,6 +7,7 @@ import { calculateAge, searchPatients } from '@/patients';
 import { getISTDayBoundsUTC, requireSession, withHospitalContext } from '@/shared';
 import { listVisitsForDoctor } from '@/visits';
 
+import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
 import { startNextWaitingAction } from './actions';
@@ -21,7 +22,7 @@ import { startNextWaitingAction } from './actions';
 export default async function DoctorQueuePage({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  searchParams: { q?: string; success?: string; error?: string };
 }) {
   const { hospitalId, actorId: doctorId } = await requireSession(['DOCTOR']);
   const query = searchParams.q?.trim() ?? '';
@@ -47,6 +48,8 @@ export default async function DoctorQueuePage({
   return (
     <main>
       <h1>Doctor Queue</h1>
+
+      <FlashMessage success={searchParams.success} error={searchParams.error} />
 
       {/* FR-6.8: low-stock alerts must be visible to the doctor when
           prescribing, not just pharmacy staff. */}

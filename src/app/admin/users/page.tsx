@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { requireSession, withHospitalContext } from '@/shared';
 import { listUsers } from '@/users';
 
+import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
 import { createUserAction } from './actions';
@@ -19,7 +20,11 @@ const ASSIGNABLE_ROLES = [
 // their own hospital. SUPER_ADMIN is deliberately excluded from the
 // assignable roles -- that's a platform-level role, not one a Hospital
 // Admin should be able to grant.
-export default async function UsersPage() {
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: { success?: string; error?: string; sid?: string };
+}) {
   const { hospitalId } = await requireSession(['HOSPITAL_ADMIN']);
 
   const users = await withHospitalContext(hospitalId, (tx) => listUsers(tx, hospitalId));
@@ -27,6 +32,8 @@ export default async function UsersPage() {
   return (
     <main>
       <h1>Manage Users</h1>
+
+      <FlashMessage success={searchParams.success} error={searchParams.error} />
 
       <section>
         <h2>Staff accounts</h2>
@@ -62,7 +69,7 @@ export default async function UsersPage() {
 
       <section>
         <h2>Add a new user</h2>
-        <form action={createUserAction} className="stacked-form">
+        <form key={searchParams.sid ?? 'idle'} action={createUserAction} className="stacked-form">
           <label>
             Name
             <input type="text" name="name" required />

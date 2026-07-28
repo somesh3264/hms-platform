@@ -1,3 +1,5 @@
+import { resolveCurrentHospital } from '@/tenants';
+
 import { loginAction } from './actions';
 
 export default async function LoginPage({
@@ -5,10 +7,16 @@ export default async function LoginPage({
 }: {
   searchParams: { error?: string };
 }) {
+  const hospital = await resolveCurrentHospital();
+
   return (
     <main className="auth-page">
       <div className="auth-card">
-        <h1>HMS Platform</h1>
+        {hospital.logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={hospital.logoUrl} alt={hospital.name} className="auth-card-logo" />
+        )}
+        <h1>{hospital.name}</h1>
         <p>Sign in to continue.</p>
 
         {searchParams.error && (

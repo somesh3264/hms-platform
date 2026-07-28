@@ -2,20 +2,102 @@ import { searchPatients } from '@/patients';
 import { requireSession, withHospitalContext } from '@/shared';
 import { listWaitingQueue } from '@/visits';
 
+import { FlashMessage } from '@/app/components/FlashMessage';
+
 import { createVisitAction, registerPatientAction } from './actions';
 
-// Local-time "YYYY-MM-DDTHH:mm" for an <input type="datetime-local">
-// defaultValue -- that input has no timezone concept, it's the server's
-// wall-clock time, same as how the browser will hand it back on submit.
-function toDateTimeLocalValue(date: Date): string {
+// Local-time "YYYY-MM-DD" / "HH:mm" defaultValues for the separate
+// appointment date and time <input>s (split from one datetime-local field
+// since that combined picker made the time easy to miss) -- local wall-clock
+// time, same as how the browser will hand them back on submit.
+function toDateOnlyValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export default async function FrontDeskPage({ searchParams }: { searchParams: { q?: string } }) {
+function toTimeOnlyValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+// Native <input type="date"> pickers make the year hard to reach for a
+// birth date decades in the past (it's buried behind a small stepper, or
+// requires clicking back one month at a time) -- three plain <select>s let
+// staff jump straight to the year.
+function DateOfBirthFields() {
+  const currentYear = new Date().getFullYear();
+  const days = Array.from({ length: 31 }, (_, i) => i + 1);
+  const years = Array.from({ length: 121 }, (_, i) => currentYear - i);
+
+  return (
+    <div className="inline-fields">
+      <label>
+        Day
+        <select name="dobDay" required defaultValue="">
+          <option value="" disabled>
+            Day
+          </option>
+          {days.map((day) => (
+            <option key={day} value={day}>
+              {day}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Month
+        <select name="dobMonth" required defaultValue="">
+          <option value="" disabled>
+            Month
+          </option>
+          {MONTHS.map((month, index) => (
+            <option key={month} value={index + 1}>
+              {month}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Year
+        <select name="dobYear" required defaultValue="">
+          <option value="" disabled>
+            Year
+          </option>
+          {years.map((year) => (
+            <option key={year} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+export default async function FrontDeskPage({
+  searchParams,
+}: {
+  searchParams: { q?: string; success?: string; error?: string; sid?: string };
+}) {
   const { hospitalId } = await requireSession(['FRONT_DESK']);
   const query = searchParams.q?.trim() ?? '';
-  const now = toDateTimeLocalValue(new Date());
+  const nowDate = toDateOnlyValue(new Date());
+  const nowTime = toTimeOnlyValue(new Date());
 
   const { searchResults, queue, doctors } = await withHospitalContext(hospitalId, async (tx) => {
     const searchResults = query ? await searchPatients(tx, { hospitalId, query }) : [];
@@ -31,6 +113,8 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
   return (
     <main>
       <h1>Front Desk</h1>
+
+      <FlashMessage success={searchParams.success} error={searchParams.error} />
 
       <section>
         <h2>Find a patient</h2>
@@ -71,6 +155,7 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
                   <td>
                     <form action={createVisitAction}>
                       <input type="hidden" name="patientId" value={patient.id} />
+                      <input type="hidden" name="q" value={query} />
                       <select name="doctorId" required>
                         <option value="">Assign doctor…</option>
                         {doctors.map((doctor) => (
@@ -80,10 +165,16 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
                         ))}
                       </select>
                       <input type="text" name="department" placeholder="Department (optional)" />
-                      <label>
-                        Appointment date &amp; time
-                        <input type="datetime-local" name="visitDate" defaultValue={now} required />
-                      </label>
+                      <div className="inline-fields">
+                        <label>
+                          Appointment date
+                          <input type="date" name="visitDateOnly" defaultValue={nowDate} required />
+                        </label>
+                        <label>
+                          Appointment time
+                          <input type="time" name="visitTimeOnly" defaultValue={nowTime} required />
+                        </label>
+                      </div>
                       <button type="submit">Create visit</button>
                     </form>
                   </td>
@@ -96,7 +187,7 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
 
       <section>
         <h2>Register new patient</h2>
-        <form action={registerPatientAction}>
+        <form key={searchParams.sid ?? 'idle'} action={registerPatientAction}>
           <label>
             First name
             <input type="text" name="firstName" required />
@@ -105,10 +196,8 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
             Last name
             <input type="text" name="lastName" required />
           </label>
-          <label>
-            Date of birth
-            <input type="date" name="dateOfBirth" required />
-          </label>
+          <label>Date of birth</label>
+          <DateOfBirthFields />
           <label>
             Gender
             <select name="gender" defaultValue="UNKNOWN">
@@ -145,10 +234,16 @@ export default async function FrontDeskPage({ searchParams }: { searchParams: { 
               ))}
             </select>
           </label>
-          <label>
-            Appointment date &amp; time
-            <input type="datetime-local" name="visitDate" defaultValue={now} />
-          </label>
+          <div className="inline-fields">
+            <label>
+              Appointment date
+              <input type="date" name="visitDateOnly" defaultValue={nowDate} />
+            </label>
+            <label>
+              Appointment time
+              <input type="time" name="visitTimeOnly" defaultValue={nowTime} />
+            </label>
+          </div>
           <button type="submit">Register patient</button>
         </form>
       </section>

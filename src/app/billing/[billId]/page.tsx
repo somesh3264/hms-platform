@@ -1,6 +1,7 @@
 import { getBillDetail } from '@/billing';
 import { requireSession, withHospitalContext } from '@/shared';
 
+import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
 import { recordPaymentAction } from './actions';
@@ -10,7 +11,13 @@ import { recordPaymentAction } from './actions';
 // nav so what prints is just the invoice, satisfying FR-7.6 (print/export
 // with hospital name and logo) without server-side PDF generation, which
 // the TRD calls for but isn't built here.
-export default async function BillDetailPage({ params }: { params: { billId: string } }) {
+export default async function BillDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { billId: string };
+  searchParams: { success?: string; error?: string };
+}) {
   // FR-8.2: any authorized staff role can open a past bill from a patient's
   // record (src/app/patients/[patientId]), not just billing staff -- the
   // payment form below is still restricted to BILLING_STAFF.
@@ -33,6 +40,10 @@ export default async function BillDetailPage({ params }: { params: { billId: str
         {bill.hospital.address && <p>{bill.hospital.address}</p>}
         {bill.hospital.gstin && <p>GSTIN: {bill.hospital.gstin}</p>}
       </header>
+
+      <div className="no-print">
+        <FlashMessage success={searchParams.success} error={searchParams.error} />
+      </div>
 
       <section>
         <h2>Invoice {bill.billNumber}</h2>

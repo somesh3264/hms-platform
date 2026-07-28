@@ -1,11 +1,17 @@
 import { prisma, requireSession } from '@/shared';
 
+import { FlashMessage } from '@/app/components/FlashMessage';
+
 import { updateHospitalBrandingAction } from './actions';
 
 // FR-1.2/FR-1.3: lets a Hospital Admin edit the branding fields already on
 // the Hospital model (logo, name is fixed, address, contact, GSTIN, theme
 // color) instead of leaving them seed-only.
-export default async function HospitalSettingsPage() {
+export default async function HospitalSettingsPage({
+  searchParams,
+}: {
+  searchParams: { success?: string; error?: string };
+}) {
   const { hospitalId } = await requireSession(['HOSPITAL_ADMIN']);
 
   const hospital = await prisma.hospital.findUniqueOrThrow({ where: { id: hospitalId } });
@@ -13,6 +19,8 @@ export default async function HospitalSettingsPage() {
   return (
     <main>
       <h1>Hospital Settings</h1>
+
+      <FlashMessage success={searchParams.success} error={searchParams.error} />
 
       <section className="form-narrow">
         <form action={updateHospitalBrandingAction}>

@@ -2,6 +2,7 @@ import { searchMedicines } from '@/inventory';
 import { getPrescriptionDetail } from '@/prescriptions';
 import { requireSession, withHospitalContext } from '@/shared';
 
+import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
 import { dispenseItemAction, finalizeDispensingAction } from './actions';
@@ -11,7 +12,7 @@ export default async function DispensePrescriptionPage({
   searchParams,
 }: {
   params: { prescriptionId: string };
-  searchParams: { medQuery?: string };
+  searchParams: { medQuery?: string; success?: string; error?: string };
 }) {
   const { hospitalId } = await requireSession(['PHARMACIST']);
   const medQuery = searchParams.medQuery?.trim() ?? '';
@@ -33,6 +34,8 @@ export default async function DispensePrescriptionPage({
         {prescription.patient.firstName} {prescription.patient.lastName} (
         {prescription.patient.patientCode})
       </h1>
+
+      <FlashMessage success={searchParams.success} error={searchParams.error} />
 
       <section>
         <h2>Prescription</h2>
@@ -130,6 +133,7 @@ export default async function DispensePrescriptionPage({
                         <form action={dispenseItemAction}>
                           <input type="hidden" name="prescriptionId" value={prescription.id} />
                           <input type="hidden" name="medicineId" value={medicine.id} />
+                          <input type="hidden" name="medQuery" value={medQuery} />
                           <input
                             type="number"
                             name="quantity"

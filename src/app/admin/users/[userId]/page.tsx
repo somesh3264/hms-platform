@@ -1,5 +1,7 @@
 import { requireSession, withHospitalContext } from '@/shared';
 
+import { FlashMessage } from '@/app/components/FlashMessage';
+
 import { resetPasswordAction, updateUserAction } from './actions';
 
 const ASSIGNABLE_ROLES = [
@@ -10,7 +12,13 @@ const ASSIGNABLE_ROLES = [
   'BILLING_STAFF',
 ] as const;
 
-export default async function EditUserPage({ params }: { params: { userId: string } }) {
+export default async function EditUserPage({
+  params,
+  searchParams,
+}: {
+  params: { userId: string };
+  searchParams: { success?: string; error?: string };
+}) {
   const { hospitalId, actorId } = await requireSession(['HOSPITAL_ADMIN']);
 
   const user = await withHospitalContext(hospitalId, (tx) =>
@@ -22,6 +30,8 @@ export default async function EditUserPage({ params }: { params: { userId: strin
   return (
     <main>
       <h1>Edit user</h1>
+
+      <FlashMessage success={searchParams.success} error={searchParams.error} />
 
       <section className="form-narrow">
         <form action={updateUserAction} className="stacked-form">

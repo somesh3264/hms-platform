@@ -265,7 +265,12 @@ the tenant automatically -- a direct `prisma.hospital.findFirst` (not through
 picks an arbitrary hospital once a second one is onboarded** -- it's
 explicitly flagged in that file as needing a real tenant-resolution
 mechanism (e.g. per-hospital subdomain) before that happens; don't build
-more on top of the current shortcut without revisiting it first.
+more on top of the current shortcut without revisiting it first. The login
+page itself shows that same resolved hospital's name/logo (`resolveCurrentHospital`,
+the full-row sibling of `resolveCurrentHospitalId`) instead of a generic
+product name, so staff see which hospital they're signing into -- consistent
+with the rest of the app never showing "HMS Platform" once branding is
+available.
 `authenticateUser` (`src/users/authenticate.ts`) looks up the `User` row
 scoped by `[hospitalId, email]` inside `withHospitalContext` (the `users`
 table *is* RLS-protected), compares the password with `bcryptjs`, and records a
@@ -339,12 +344,20 @@ common walk-in case) -- leaving the doctor field blank just registers the
 patient, matching the BRS's original separation between registration and
 visit creation. The same doctor+appointment fields exist on the "Create
 visit" form for patients found via search (`createVisitAction`), since both
-paths funnel through the same `createVisit`. The appointment date/time is a
-plain `<input type="datetime-local">` reusing `Visit.visitDate` (no new
-column) -- defaults to now but is fully editable, so front desk can book a
-call-in patient for a specific future slot (e.g. an evening appointment
-requested in the morning); **queue and "next patient" ordering are based on
-this scheduled time, not check-in/token order** (see below).
+paths funnel through the same `createVisit`. The appointment date and time
+are two separate `<input type="date">`/`<input type="time">` fields (a
+combined `datetime-local` picker made the time half easy to miss), combined
+server-side in `combineDateAndTime` back into the single `Visit.visitDate`
+(no new column) -- defaults to now but is fully editable, so front desk can
+book a call-in patient for a specific future slot (e.g. an evening
+appointment requested in the morning); **queue and "next patient" ordering
+are based on this scheduled time, not check-in/token order** (see below).
+Date of birth is similarly three `<select>`s (day/month/year, see
+`DateOfBirthFields`) rather than a native `<input type="date">` -- that
+picker buries the year behind a small stepper, making it impractical to
+reach a birth year decades back. Since three independent selects can
+express a combination a native picker never would (e.g. 30 February),
+`parseDateOfBirth` validates the result is a real calendar date.
 
 **Token/queue number (FR-3.7/FR-3.8)**: every visit gets an
 auto-assigned, display-only queue number via `generateTokenNumber`

@@ -1,8 +1,6 @@
 'use server';
 
-import { redirect } from 'next/navigation';
-
-import { getISTDayBoundsUTC, requireSession, withHospitalContext } from '@/shared';
+import { getISTDayBoundsUTC, redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 import { startConsultation } from '@/visits';
 
 // FR-4.10: one-click "begin consultation with the next waiting patient in
@@ -37,8 +35,8 @@ export async function startNextWaitingAction(): Promise<void> {
   });
 
   if (!visitId) {
-    throw new Error("No waiting patients in today's queue.");
+    redirectWithFlash('/doctor', { error: "No waiting patients in today's queue." });
   }
 
-  redirect(`/doctor/visits/${visitId}`);
+  redirectWithFlash(`/doctor/visits/${visitId}`, { success: 'Consultation started.' });
 }

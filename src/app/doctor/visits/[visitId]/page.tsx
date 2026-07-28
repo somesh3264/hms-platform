@@ -2,6 +2,7 @@ import { getPatientHistory } from '@/patients';
 import { requireSession, withHospitalContext } from '@/shared';
 import { getVisitDetail } from '@/visits';
 
+import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
 import {
@@ -12,7 +13,13 @@ import {
   uploadPrescriptionAction,
 } from './actions';
 
-export default async function VisitDetailPage({ params }: { params: { visitId: string } }) {
+export default async function VisitDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { visitId: string };
+  searchParams: { success?: string; error?: string; sid?: string };
+}) {
   const { hospitalId } = await requireSession(['DOCTOR']);
 
   const { visit, history } = await withHospitalContext(hospitalId, async (tx) => {
@@ -28,6 +35,8 @@ export default async function VisitDetailPage({ params }: { params: { visitId: s
       <h1>
         {visit.patient.firstName} {visit.patient.lastName} ({visit.patient.patientCode})
       </h1>
+
+      <FlashMessage success={searchParams.success} error={searchParams.error} />
 
       <section>
         <h2>Patient</h2>
@@ -98,7 +107,7 @@ export default async function VisitDetailPage({ params }: { params: { visitId: s
         <h2>Prescriptions</h2>
 
         {visit.status === 'IN_CONSULTATION' && (
-          <form action={uploadPrescriptionAction}>
+          <form key={searchParams.sid ?? 'idle'} action={uploadPrescriptionAction}>
             <input type="hidden" name="visitId" value={visit.id} />
             <label>
               Scanned prescription (image or PDF)

@@ -389,6 +389,14 @@ main > header p {
   padding: 2rem;
 }
 
+.auth-card-logo {
+  display: block;
+  height: 48px;
+  width: auto;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+}
+
 .stacked-form {
   display: flex;
   flex-direction: column;
@@ -399,6 +407,24 @@ main > header p {
    the full 960px content width. */
 .form-narrow {
   max-width: 480px;
+}
+
+/* Groups a few short fields on one row -- date-of-birth's day/month/year
+   selects, and appointment date+time as two separate fields (see
+   src/app/front-desk/page.tsx). */
+.inline-fields {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.inline-fields > label {
+  margin-bottom: 0;
+}
+
+.inline-fields select,
+.inline-fields input {
+  min-width: 0;
 }
 
 .alert {
@@ -416,6 +442,11 @@ main > header p {
 .alert-warning {
   background: var(--color-warning-bg);
   color: var(--color-warning-text);
+}
+
+.alert-success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 @media print {

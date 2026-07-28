@@ -1,3 +1,5 @@
+import type { Hospital } from '@prisma/client';
+
 import { prisma } from '@/shared';
 
 // TEMPORARY, single-tenant-deployment assumption: today this codebase runs
@@ -8,11 +10,14 @@ import { prisma } from '@/shared';
 // `ACTIVE` hospital (oldest first) once a second one is onboarded, which
 // would silently be wrong -- revisit with a real tenant-resolution
 // mechanism (e.g. per-hospital subdomain) before onboarding a second client.
-export async function resolveCurrentHospitalId(): Promise<string> {
-  const hospital = await prisma.hospital.findFirstOrThrow({
+export async function resolveCurrentHospital(): Promise<Hospital> {
+  return prisma.hospital.findFirstOrThrow({
     where: { status: 'ACTIVE' },
     orderBy: { createdAt: 'asc' },
-    select: { id: true },
   });
+}
+
+export async function resolveCurrentHospitalId(): Promise<string> {
+  const hospital = await resolveCurrentHospital();
   return hospital.id;
 }

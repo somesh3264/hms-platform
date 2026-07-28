@@ -120,7 +120,7 @@ npm run typecheck               # tsc --noEmit
 npm run prisma:generate          # regenerate Prisma client after schema changes
 npm run prisma:migrate            # create/apply a local migration
 npm run prisma:studio              # open Prisma Studio
-npm run prisma:seed                # seed a demo hospital (with address/GSTIN) + hospital-admin/front-desk/doctor/pharmacist/billing-staff users (all password "password123") + demo medicines
+npm run prisma:seed                # seed a demo hospital (with address/GSTIN) + hospital-admin/front-desk/doctor/pharmacist users (all password "password123") + demo medicines
 ```
 
 No test runner is configured yet — there are no test files or test script in
@@ -136,12 +136,12 @@ Code is organized by domain, one top-level folder per module. `patients`,
 data-access functions (see the module sections below):
 
 - `tenants` — `updateHospitalBranding`, `resolveCurrentHospitalId` (hospital branding/config, maps to the `Hospital` model); Super Admin onboarding/subscription management (FR-1.1/FR-1.6) is not built and of questionable relevance under the current single-hospital-per-deployment model
-- `users` — `authenticateUser` (FR-2.4 login), `listUsers`/`createUser`/`updateUser`/`resetUserPassword` (FR-2.2); roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST, BILLING_STAFF)
+- `users` — `authenticateUser` (FR-2.4 login), `listUsers`/`createUser`/`updateUser`/`resetUserPassword` (FR-2.2); roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST -- no separate BILLING_STAFF, see "Pharmacist billing" below)
 - `patients` — `searchPatients`, `registerPatient`, `updatePatientDemographics`, `generatePatientCode`, `getPatientHistory` (`Patient`)
 - `visits` — `createVisit`, `listWaitingQueue`, `listVisitsForDoctor`, `getVisitDetail`, `startConsultation`, `saveConsultationNotes`, `completeConsultation` (`Visit`)
 - `prescriptions` — `uploadPrescription`, `replacePrescription`, `listPharmacyQueue`, `getPrescriptionDetail` (`Prescription`)
 - `inventory` — `searchMedicines`, `listMedicines`, `listLowStockMedicines`, `dispenseItem`, `finalizeDispensing` (`Medicine`; no DB-level uniqueness on name/batch, dedupe is app-level)
-- `billing` — `listVisitsReadyToBill`, `createBill`, `recordPayment`, `searchBills`, `getBillDetail`, `generateBillNumber` (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers)
+- `billing` — `listVisitsReadyToBill`, `createBill`, `collectConsultationFee` (front desk's own standalone fee `Bill`, see "Front desk registration" below), `recordPayment`, `searchBills`, `getBillDetail`, `generateBillNumber` (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers)
 - `shared` — cross-module utilities: Prisma client singleton (`prisma.ts`), `withHospitalContext`
   (`tenant-context.ts`), `recordAuditLog` (`audit-log.ts`), the local-disk file storage stand-in
   (`storage.ts`, see "Prescription digitization" below), and the signed-cookie session
@@ -273,7 +273,7 @@ with the rest of the app never showing "HMS Platform" once branding is
 available.
 `authenticateUser` (`src/users/authenticate.ts`) looks up the `User` row
 scoped by `[hospitalId, email]` inside `withHospitalContext` (the `users`
-table *is* RLS-protected), compares the password with `bcryptjs`, and records a
+table _is_ RLS-protected), compares the password with `bcryptjs`, and records a
 `LOGIN` audit entry on success; it returns `null` on any failure (unknown
 email, wrong password, inactive user) without distinguishing which, and
 `src/app/login/actions.ts` redirects back to `/login?error=1` rather than
@@ -389,6 +389,46 @@ Gated to the `FRONT_DESK` role via `requireSession(['FRONT_DESK'])` (see
 "Authentication" above) -- run `npm run prisma:seed` once first so a
 `FRONT_DESK` user exists to log in as.
 
+**Consultation fee collection** (not a numbered BRS/TRD FR -- a later,
+explicitly requested addition) happens at the front desk itself, not later
+at the billing counter: `collectConsultationFee`
+(`src/billing/consultation-fee.ts`) builds and pays a standalone `Bill` (one
+`SERVICE` line item, no tax) in a single step, reusing `recordPayment` so it
+still shows up correctly everywhere a `Bill` does (`/billing/[billId]`,
+`searchBills`, the patient longitudinal view). It's deliberately its own
+function rather than a call into the billing module's `createBill` --
+`createBill` also sweeps in any dispensed-but-unbilled medicine line items
+for the visit, which would wrongly fold a later medicine bill into what's
+meant to stay a standalone reception-desk fee. **Walk-in vs. booked decides
+whether the fee is collected now or deferred**: `maybeCollectConsultationFee`
+(`src/app/front-desk/actions.ts`) treats the visit's resolved `visitDate` as
+the signal -- `<= now` (a walk-in, or no explicit date/time entered) collects
+the fee immediately in the same `registerPatientAction`/`createVisitAction`
+transaction, requiring the fee amount and payment method be filled in;
+a future date/time (a booked appointment) skips collection there entirely,
+even if those fields were filled in, on the assumption front desk will
+collect it later. There's no separate "arrived" status to drive this --
+skipping is purely a same-transaction convenience, and the deferred fee is
+always collected via the waiting queue below regardless of whether the
+appointment time has technically passed yet. **Referral discount is entered
+in rupees, not a percentage** (`discountRupees` on the fee form, same
+convention as the billing module's existing discount field) -- for patients
+referred by a friend or relative, at front desk's discretion, no separate
+"referral" record kept. **Payment method is cash, UPI, or card**
+(`PaymentMethod` enum gained `CARD` for this -- the billing module's
+`recordPayment` was previously UPI/Cash only, FR-7.5). For a deferred/booked
+visit, the waiting queue's new "Consultation fee" column carries a
+`collectConsultationFeeAction` form directly in that row (fee/discount/
+payment method, all required this time since this path always collects on
+the spot) once the patient arrives; a visit that's already paid shows a
+`PAID` badge instead. `listWaitingQueue` (`src/visits/queue.ts`) now also
+selects each visit's `PAID` bills to tell the two apart --
+a `WAITING`-status visit can only ever have a `Bill` from this collection
+step, since dispensing (and so a medicine bill) requires the visit to have
+already passed through `IN_CONSULTATION`, so "any `PAID` bill exists"
+reliably means "fee already collected," without needing to match on the
+line item description.
+
 ### Doctor consultation (`src/app/doctor`, `src/visits`, `src/patients`)
 
 Implements BRS FR-4.1–FR-4.12: the doctor's home screen/queue for the day
@@ -420,7 +460,7 @@ page. "Start next waiting patient" (FR-4.10, `src/app/doctor/actions.ts`'s
 within today's IST bounds and claims it via `startConsultation` in one
 transaction (pick-then-claim atomicity, distinct from `startConsultation`'s
 own re-entrancy safety), then redirects into the visit detail screen --
-unlike `startConsultationAction` below, which is invoked *from* that detail
+unlike `startConsultationAction` below, which is invoked _from_ that detail
 page and just revalidates in place. **Queue/next-patient ordering is by
 `visitDate` (appointment time), not token number** -- a deliberate decision
 so last session's appointment-scheduling feature (front desk can book a
@@ -503,6 +543,13 @@ doctors "when prescribing" — `/doctor`'s queue page shows the same
 `listLowStockMedicines` list as a banner; keep both in sync if this logic
 changes.
 
+**Finalizing dispensing hands straight into billing, same role, same
+session** (a later, explicitly requested change -- see "Pharmacist billing"
+below): `finalizeDispensingAction` (`src/app/pharmacy/[prescriptionId]/actions.ts`)
+redirects to `/billing/new/[visitId]` on success instead of back to the
+pharmacy queue, so the pharmacist who just dispensed generates and collects
+the medicine bill themselves, in one continuous flow.
+
 ### Digital billing (`src/app/billing`, `src/billing`)
 
 Implements BRS FR-7.1–FR-7.7. `/billing` lists visits with dispensed-but-
@@ -510,12 +557,12 @@ unbilled line items (`listVisitsReadyToBill`, reachable via
 `Visit -> Prescription -> BillLineItem` since line items link to a visit only
 through the prescription they fulfil) alongside a history search
 (`searchBills`, FR-7.7: by patient name/ID or bill number, optionally a date).
-`/billing/new/[visitId]` previews those unbilled items and lets billing staff
-add one optional service charge (e.g. consultation fee, FR-7.3) plus a
-discount and tax rate; `createBill` (FR-7.1/7.2) does the actual attach: the
-existing unbilled `BillLineItem`s get `billId` set to the new `Bill`, the
-service charge (if any) is created directly against it, and the bill number
-comes from `generateBillNumber` -- same atomic
+`/billing/new/[visitId]` previews those unbilled items and lets the
+pharmacist add one optional service charge (e.g. consultation fee, FR-7.3)
+plus a discount and tax rate; `createBill` (FR-7.1/7.2) does the actual
+attach: the existing unbilled `BillLineItem`s get `billId` set to the new
+`Bill`, the service charge (if any) is created directly against it, and the
+bill number comes from `generateBillNumber` -- same atomic
 `UPDATE Hospital.billNumberSeq ... RETURNING` pattern as
 `generatePatientCode`.
 
@@ -529,15 +576,45 @@ creating an empty invoice.
 
 `/billing/[billId]` is the printable view (FR-7.6: hospital name/logo/GSTIN,
 line items, subtotal/discount/tax/total) and, while `paymentStatus` is
-`PENDING`, the payment form (`recordPayment`, FR-7.5: UPI or Cash only, no
-insurance/TPA workflow -- this only records that payment happened via the
-hospital's own UPI QR/handle, it doesn't process payment). `recordPayment`
-rejects a bill that's already `PAID` (verified directly, not just via the
-form disappearing from the UI). Printing uses the browser's native print
-(a `<style>{'@media print {...}'}</style>` block hides the payment form/nav),
+`PENDING`, the payment form (`recordPayment`, FR-7.5: cash, UPI, or card, no
+insurance/TPA workflow -- this only records that payment happened, it
+doesn't process it) is shown to the `PHARMACIST` role (see "Pharmacist
+billing" below). `recordPayment` rejects a bill that's already `PAID`
+(verified directly, not just via the form disappearing from the UI).
+Printing uses the browser's native print (a
+`<style>{'@media print {...}'}</style>` block hides the payment form/nav),
 not a PDF library -- the TRD calls for server-side PDF generation, which
 isn't built; this is a dependency-free stand-in worth reconsidering if a
 real branded PDF becomes a hard requirement.
+
+### Pharmacist billing (no separate BILLING_STAFF role)
+
+A later, explicitly requested change: at this hospital the pharmacist and
+billing staff are the same person, so `BILLING_STAFF` was removed from
+`UserRole` entirely (migration
+`prisma/migrations/*_remove_billing_staff_role`, hand-written like the RLS
+migrations rather than schema-diffed, since Postgres has no `ALTER TYPE ...
+DROP VALUE` -- it reassigns any existing `BILLING_STAFF` users to
+`PHARMACIST` first, then recreates the enum without it via the standard
+create-new-type/swap-column/drop-old-type dance, since the column-type
+`USING` cast would otherwise fail on rows still holding the removed value).
+`PHARMACIST` is now the role gate on every billing screen/action
+(`/billing`, `/billing/new/[visitId]`, `/billing/[billId]`'s payment form)
+in addition to the pharmacy screens it already gated -- there's no more
+separate billing-staff login or hand-off queue. `ROLE_HOME`
+(`src/shared/session.ts`) and the nav header's `ROLE_LINKS`
+(`src/app/layout.tsx`) were updated the same way -- `PHARMACIST` now also
+gets a "Billing" nav link. `PaymentMethod` gained `CARD` alongside `UPI`/
+`CASH` at the same time (previously UPI/Cash only, FR-7.5) for this same
+merged role to record any of the three at `/billing/[billId]`.
+
+The UX consequence, not just the permission change: `finalizeDispensingAction`
+(see "In-house medical store / pharmacy" above) now redirects the pharmacist
+straight into `/billing/new/[visitId]` instead of back to the pharmacy
+queue, so "prescription dispensed" flows directly into "bill generated by
+the same person" in one sitting -- matching how this hospital actually
+staffs the two jobs as one, rather than the original design's separate
+pharmacy-queue-then-billing-queue hand-off between two different roles.
 
 ### Patient longitudinal view (`src/app/patients`, `src/patients/history.ts`)
 

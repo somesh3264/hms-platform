@@ -21,11 +21,15 @@ const ROLE_LINKS: Record<UserRole, { href: string; label: string }[]> = {
   ],
   FRONT_DESK: [{ href: '/front-desk', label: 'Front Desk' }],
   DOCTOR: [{ href: '/doctor', label: 'Doctor Queue' }],
+  // The pharmacist bills for the medicines they dispense themselves -- no
+  // separate billing-staff role/hand-off (see "Pharmacist billing" in
+  // CLAUDE.md) -- so "Billing" (bill history/search) is one of their own
+  // links, not a different role's.
   PHARMACIST: [
     { href: '/pharmacy', label: 'Pharmacy Queue' },
     { href: '/pharmacy/inventory', label: 'Inventory' },
+    { href: '/billing', label: 'Billing' },
   ],
-  BILLING_STAFF: [{ href: '/billing', label: 'Billing' }],
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

@@ -67,7 +67,6 @@ enum UserRole {
   FRONT_DESK
   DOCTOR
   PHARMACIST
-  BILLING_STAFF
 
   @@map("user_role")
 }
@@ -257,6 +256,7 @@ model Medicine {
 enum PaymentMethod {
   UPI
   CASH
+  CARD
 
   @@map("payment_method")
 }

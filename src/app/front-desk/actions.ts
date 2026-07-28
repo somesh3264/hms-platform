@@ -1,7 +1,8 @@
 'use server';
 
-import type { Gender } from '@prisma/client';
+import type { Gender, PaymentMethod, Prisma } from '@prisma/client';
 
+import { collectConsultationFee } from '@/billing';
 import { registerPatient } from '@/patients';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 import { createVisit } from '@/visits';
@@ -61,9 +62,54 @@ function parseDateOfBirth(
   return parsed;
 }
 
+// Collects the consultation fee at the front desk (BRS-adjacent addition,
+// no FR number) -- immediately if the visit being created is "now" (a
+// walk-in), or deferred if it's a future-dated appointment, in which case
+// front desk collects it later via collectConsultationFeeAction once the
+// patient actually arrives (see the waiting-queue form in page.tsx). A
+// visit with no explicit date defaults to now in createVisit, so undefined
+// counts as a walk-in here too. Referral discount is entered in rupees,
+// same convention as the billing module's discount field.
+async function maybeCollectConsultationFee(
+  tx: Prisma.TransactionClient,
+  params: {
+    hospitalId: string;
+    actorId: string;
+    visitId: string;
+    visitDate: Date | undefined;
+    formData: FormData;
+  },
+): Promise<boolean> {
+  const isWalkIn = !params.visitDate || params.visitDate.getTime() <= Date.now();
+  if (!isWalkIn) {
+    return false;
+  }
+
+  const feeRupees = Number(params.formData.get('consultationFeeRupees'));
+  if (!Number.isFinite(feeRupees) || feeRupees <= 0) {
+    throw new Error('A consultation fee amount is required to register a walk-in visit.');
+  }
+  const discountRupees = Number(params.formData.get('discountRupees') ?? 0);
+  const paymentMethod = optionalString(params.formData, 'paymentMethod');
+  if (!paymentMethod) {
+    throw new Error('A payment method is required to collect the consultation fee.');
+  }
+
+  await collectConsultationFee(tx, {
+    hospitalId: params.hospitalId,
+    actorId: params.actorId,
+    visitId: params.visitId,
+    feeCents: Math.round(feeRupees * 100),
+    discountCents: Number.isFinite(discountRupees) ? Math.round(discountRupees * 100) : 0,
+    paymentMethod: paymentMethod as PaymentMethod,
+  });
+  return true;
+}
+
 export async function registerPatientAction(formData: FormData): Promise<void> {
   const { hospitalId, actorId } = await requireSession(['FRONT_DESK']);
 
+  let feeCollected = false;
   try {
     const firstName = optionalString(formData, 'firstName');
     const lastName = optionalString(formData, 'lastName');
@@ -88,7 +134,7 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
       optionalString(formData, 'visitTimeOnly'),
     );
 
-    await withHospitalContext(hospitalId, async (tx) => {
+    feeCollected = await withHospitalContext(hospitalId, async (tx) => {
       const patient = await registerPatient(tx, {
         hospitalId,
         actorId,
@@ -102,9 +148,23 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
         consentDigitalDelivery: formData.get('consentDigitalDelivery') === 'on',
       });
 
-      if (doctorId) {
-        await createVisit(tx, { hospitalId, actorId, patientId: patient.id, doctorId, visitDate });
+      if (!doctorId) {
+        return false;
       }
+      const visit = await createVisit(tx, {
+        hospitalId,
+        actorId,
+        patientId: patient.id,
+        doctorId,
+        visitDate,
+      });
+      return maybeCollectConsultationFee(tx, {
+        hospitalId,
+        actorId,
+        visitId: visit.id,
+        visitDate,
+        formData,
+      });
     });
   } catch (err) {
     redirectWithFlash('/front-desk', {
@@ -112,7 +172,11 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
     });
   }
 
-  redirectWithFlash('/front-desk', { success: 'Patient registered successfully.' });
+  redirectWithFlash('/front-desk', {
+    success: feeCollected
+      ? 'Patient registered and consultation fee collected.'
+      : 'Patient registered successfully.',
+  });
 }
 
 export async function createVisitAction(formData: FormData): Promise<void> {
@@ -120,6 +184,7 @@ export async function createVisitAction(formData: FormData): Promise<void> {
   const query = optionalString(formData, 'q');
   const path = query ? `/front-desk?q=${encodeURIComponent(query)}` : '/front-desk';
 
+  let feeCollected = false;
   try {
     const patientId = optionalString(formData, 'patientId');
     const doctorId = optionalString(formData, 'doctorId');
@@ -131,19 +196,74 @@ export async function createVisitAction(formData: FormData): Promise<void> {
       optionalString(formData, 'visitTimeOnly'),
     );
 
-    await withHospitalContext(hospitalId, (tx) =>
-      createVisit(tx, {
+    feeCollected = await withHospitalContext(hospitalId, async (tx) => {
+      const visit = await createVisit(tx, {
         hospitalId,
         actorId,
         patientId,
         doctorId,
         department: optionalString(formData, 'department'),
         visitDate,
+      });
+      return maybeCollectConsultationFee(tx, {
+        hospitalId,
+        actorId,
+        visitId: visit.id,
+        visitDate,
+        formData,
+      });
+    });
+  } catch (err) {
+    redirectWithFlash(path, {
+      error: err instanceof Error ? err.message : 'Failed to create visit.',
+    });
+  }
+
+  redirectWithFlash(path, {
+    success: feeCollected
+      ? 'Visit created and consultation fee collected.'
+      : 'Visit created successfully.',
+  });
+}
+
+// For a visit that was booked ahead of time (fee deferred at creation, see
+// maybeCollectConsultationFee above) -- front desk calls this once the
+// patient physically arrives, from the inline form on their waiting-queue
+// row (page.tsx). Not reused for the walk-in path above since this one
+// always requires the fee/payment fields outright, no date-based deferral.
+export async function collectConsultationFeeAction(formData: FormData): Promise<void> {
+  const { hospitalId, actorId } = await requireSession(['FRONT_DESK']);
+
+  try {
+    const visitId = optionalString(formData, 'visitId');
+    if (!visitId) {
+      throw new Error('Missing visit.');
+    }
+    const feeRupees = Number(formData.get('consultationFeeRupees'));
+    if (!Number.isFinite(feeRupees) || feeRupees <= 0) {
+      throw new Error('A consultation fee amount is required.');
+    }
+    const discountRupees = Number(formData.get('discountRupees') ?? 0);
+    const paymentMethod = optionalString(formData, 'paymentMethod');
+    if (!paymentMethod) {
+      throw new Error('A payment method is required.');
+    }
+
+    await withHospitalContext(hospitalId, (tx) =>
+      collectConsultationFee(tx, {
+        hospitalId,
+        actorId,
+        visitId,
+        feeCents: Math.round(feeRupees * 100),
+        discountCents: Number.isFinite(discountRupees) ? Math.round(discountRupees * 100) : 0,
+        paymentMethod: paymentMethod as PaymentMethod,
       }),
     );
   } catch (err) {
-    redirectWithFlash(path, { error: err instanceof Error ? err.message : 'Failed to create visit.' });
+    redirectWithFlash('/front-desk', {
+      error: err instanceof Error ? err.message : 'Failed to collect consultation fee.',
+    });
   }
 
-  redirectWithFlash(path, { success: 'Visit created successfully.' });
+  redirectWithFlash('/front-desk', { success: 'Consultation fee collected.' });
 }

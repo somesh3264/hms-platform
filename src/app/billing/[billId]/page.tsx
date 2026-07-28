@@ -19,8 +19,9 @@ export default async function BillDetailPage({
   searchParams: { success?: string; error?: string };
 }) {
   // FR-8.2: any authorized staff role can open a past bill from a patient's
-  // record (src/app/patients/[patientId]), not just billing staff -- the
-  // payment form below is still restricted to BILLING_STAFF.
+  // record (src/app/patients/[patientId]), not just the pharmacist -- the
+  // payment form below is still restricted to PHARMACIST, who bills for the
+  // medicines they dispense themselves (no separate billing-staff role).
   const { hospitalId, role } = await requireSession();
 
   const bill = await withHospitalContext(hospitalId, (tx) =>
@@ -106,7 +107,7 @@ export default async function BillDetailPage({
         )}
       </section>
 
-      {bill.paymentStatus === 'PENDING' && role === 'BILLING_STAFF' && (
+      {bill.paymentStatus === 'PENDING' && role === 'PHARMACIST' && (
         <section className="no-print">
           <h2>Record payment</h2>
           <form action={recordPaymentAction}>
@@ -114,8 +115,9 @@ export default async function BillDetailPage({
             <label>
               Method
               <select name="paymentMethod" required>
-                <option value="UPI">UPI</option>
                 <option value="CASH">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="CARD">Card</option>
               </select>
             </label>
             <label>

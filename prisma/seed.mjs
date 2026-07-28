@@ -1,6 +1,8 @@
-// Seeds a demo hospital with a hospital admin, front-desk user, doctor,
-// pharmacist, and billing staff, so the front-desk/doctor/pharmacy/billing/
-// admin modules have real accounts to log into locally (src/app/login).
+// Seeds a demo hospital with a hospital admin, front-desk user, doctor, and
+// pharmacist, so the front-desk/doctor/pharmacy/billing/admin modules have
+// real accounts to log into locally (src/app/login). No separate billing
+// staff -- the pharmacist bills for the medicines they dispense (see
+// "Pharmacist billing" in CLAUDE.md).
 // Not meant to represent production data -- DEMO_PASSWORD below is a shared
 // dev-only password for every seeded user.
 import { PrismaClient } from '@prisma/client';
@@ -55,13 +57,6 @@ async function main() {
       passwordHash,
       role: 'PHARMACIST',
     },
-    {
-      hospitalId: hospital.id,
-      name: 'Sunita Iyer',
-      email: 'billing@demo.hospital',
-      passwordHash,
-      role: 'BILLING_STAFF',
-    },
   ];
 
   await prisma.user.createMany({ data: demoUsers });
@@ -109,7 +104,9 @@ async function main() {
   });
 
   console.log(`Seeded Demo Hospital (${hospital.id}).`);
-  console.log(`Log in at /login, hospital "Demo Hospital", password "${DEMO_PASSWORD}" for all of:`);
+  console.log(
+    `Log in at /login, hospital "Demo Hospital", password "${DEMO_PASSWORD}" for all of:`,
+  );
   for (const user of demoUsers) {
     console.log(`  ${user.role.padEnd(14)} ${user.email}`);
   }

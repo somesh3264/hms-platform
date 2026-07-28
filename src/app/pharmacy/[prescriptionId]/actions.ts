@@ -35,24 +35,31 @@ export async function dispenseItemAction(formData: FormData): Promise<void> {
   redirectWithFlash(path, { success: 'Medicine dispensed.' });
 }
 
+// Finalizing dispensing hands the pharmacist straight into billing for the
+// medicines they just dispensed (no separate billing-staff role/hand-off --
+// see "Pharmacist billing" in CLAUDE.md) -- so on success this lands on
+// /billing/new/[visitId], not back on the pharmacy queue.
 export async function finalizeDispensingAction(formData: FormData): Promise<void> {
   const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
   const prescriptionId = String(formData.get('prescriptionId') ?? '');
-  const path = prescriptionId ? `/pharmacy/${prescriptionId}` : '/pharmacy';
+  const visitId = String(formData.get('visitId') ?? '');
+  const errorPath = prescriptionId ? `/pharmacy/${prescriptionId}` : '/pharmacy';
 
   try {
-    if (!prescriptionId) {
-      throw new Error('Missing prescriptionId.');
+    if (!prescriptionId || !visitId) {
+      throw new Error('Missing prescriptionId or visitId.');
     }
     await withHospitalContext(hospitalId, (tx) =>
       finalizeDispensing(tx, { hospitalId, actorId, prescriptionId }),
     );
   } catch (err) {
-    redirectWithFlash(path, {
+    redirectWithFlash(errorPath, {
       error: err instanceof Error ? err.message : 'Failed to finalize dispensing.',
     });
   }
 
   revalidatePath('/pharmacy');
-  redirectWithFlash(path, { success: 'Dispensing finalized.' });
+  redirectWithFlash(`/billing/new/${visitId}`, {
+    success: 'Dispensing finalized -- generate the medicine bill below.',
+  });
 }

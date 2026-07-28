@@ -5,13 +5,7 @@ import type { UserRole } from '@prisma/client';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 import { createUser } from '@/users';
 
-const ASSIGNABLE_ROLES: UserRole[] = [
-  'HOSPITAL_ADMIN',
-  'FRONT_DESK',
-  'DOCTOR',
-  'PHARMACIST',
-  'BILLING_STAFF',
-];
+const ASSIGNABLE_ROLES: UserRole[] = ['HOSPITAL_ADMIN', 'FRONT_DESK', 'DOCTOR', 'PHARMACIST'];
 
 function optionalString(formData: FormData, key: string): string | undefined {
   const value = formData.get(key);

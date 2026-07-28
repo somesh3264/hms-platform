@@ -157,8 +157,9 @@ export default async function DispensePrescriptionPage({
           <section>
             <form action={finalizeDispensingAction}>
               <input type="hidden" name="prescriptionId" value={prescription.id} />
+              <input type="hidden" name="visitId" value={prescription.visit.id} />
               <button type="submit" disabled={prescription.billLineItems.length === 0}>
-                Finalize dispensing
+                Finalize dispensing &amp; bill
               </button>
             </form>
           </section>

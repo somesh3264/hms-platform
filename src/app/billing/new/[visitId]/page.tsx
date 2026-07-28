@@ -10,9 +10,9 @@ export default async function NewBillPage({
   searchParams,
 }: {
   params: { visitId: string };
-  searchParams: { error?: string };
+  searchParams: { success?: string; error?: string };
 }) {
-  const { hospitalId } = await requireSession(['BILLING_STAFF']);
+  const { hospitalId } = await requireSession(['PHARMACIST']);
 
   const { visit, unbilledItems } = await withHospitalContext(hospitalId, async (tx) => {
     const visit = await tx.visit.findFirstOrThrow({
@@ -34,7 +34,7 @@ export default async function NewBillPage({
         {visit.patient.patientCode})
       </h1>
 
-      <FlashMessage error={searchParams.error} />
+      <FlashMessage success={searchParams.success} error={searchParams.error} />
 
       <section>
         <h2>Dispensed medicines</h2>

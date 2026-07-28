@@ -5,13 +5,7 @@ import type { UserRole } from '@prisma/client';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 import { resetUserPassword, updateUser } from '@/users';
 
-const ASSIGNABLE_ROLES: UserRole[] = [
-  'HOSPITAL_ADMIN',
-  'FRONT_DESK',
-  'DOCTOR',
-  'PHARMACIST',
-  'BILLING_STAFF',
-];
+const ASSIGNABLE_ROLES: UserRole[] = ['HOSPITAL_ADMIN', 'FRONT_DESK', 'DOCTOR', 'PHARMACIST'];
 
 function optionalString(formData: FormData, key: string): string | undefined {
   const value = formData.get(key);
@@ -57,7 +51,9 @@ export async function updateUserAction(formData: FormData): Promise<void> {
       }),
     );
   } catch (err) {
-    redirectWithFlash(path, { error: err instanceof Error ? err.message : 'Failed to update user.' });
+    redirectWithFlash(path, {
+      error: err instanceof Error ? err.message : 'Failed to update user.',
+    });
   }
 
   redirectWithFlash(path, { success: 'User updated successfully.' });

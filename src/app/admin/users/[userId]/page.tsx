@@ -4,13 +4,7 @@ import { FlashMessage } from '@/app/components/FlashMessage';
 
 import { resetPasswordAction, updateUserAction } from './actions';
 
-const ASSIGNABLE_ROLES = [
-  'HOSPITAL_ADMIN',
-  'FRONT_DESK',
-  'DOCTOR',
-  'PHARMACIST',
-  'BILLING_STAFF',
-] as const;
+const ASSIGNABLE_ROLES = ['HOSPITAL_ADMIN', 'FRONT_DESK', 'DOCTOR', 'PHARMACIST'] as const;
 
 export default async function EditUserPage({
   params,
@@ -59,7 +53,12 @@ export default async function EditUserPage({
             <input type="text" name="department" defaultValue={user.department ?? ''} />
           </label>
           <label>
-            <input type="checkbox" name="isActive" defaultChecked={user.isActive} disabled={isSelf} />
+            <input
+              type="checkbox"
+              name="isActive"
+              defaultChecked={user.isActive}
+              disabled={isSelf}
+            />
             Active
           </label>
           {isSelf && <p className="alert alert-warning">You cannot deactivate your own account.</p>}

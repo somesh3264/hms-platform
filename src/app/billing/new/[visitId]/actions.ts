@@ -4,7 +4,7 @@ import { createBill } from '@/billing';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 
 export async function generateBillAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await requireSession(['BILLING_STAFF']);
+  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
   const visitId = String(formData.get('visitId') ?? '');
   const errorPath = visitId ? `/billing/new/${visitId}` : '/billing';
 

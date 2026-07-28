@@ -17,6 +17,12 @@ export async function listWaitingQueue(
     include: {
       patient: { select: { id: true, patientCode: true, firstName: true, lastName: true } },
       doctor: { select: { id: true, name: true } },
+      // Front desk collects the consultation fee itself (immediately for a
+      // walk-in, or here later once a booked visit's patient arrives) -- a
+      // WAITING visit can only have a Bill from that collection step, since
+      // dispensing (and so a medicine bill) requires IN_CONSULTATION first.
+      // So "any PAID bill" reliably means "fee already collected."
+      bills: { where: { paymentStatus: 'PAID' }, select: { id: true } },
     },
   });
 }

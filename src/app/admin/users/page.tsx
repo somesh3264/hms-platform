@@ -8,13 +8,7 @@ import { StatusBadge } from '@/app/components/StatusBadge';
 
 import { createUserAction } from './actions';
 
-const ASSIGNABLE_ROLES = [
-  'HOSPITAL_ADMIN',
-  'FRONT_DESK',
-  'DOCTOR',
-  'PHARMACIST',
-  'BILLING_STAFF',
-] as const;
+const ASSIGNABLE_ROLES = ['HOSPITAL_ADMIN', 'FRONT_DESK', 'DOCTOR', 'PHARMACIST'] as const;
 
 // FR-2.2: Hospital Admin creating/editing/deactivating staff accounts within
 // their own hospital. SUPER_ADMIN is deliberately excluded from the

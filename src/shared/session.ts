@@ -38,7 +38,6 @@ export const ROLE_HOME: Record<UserRole, string> = {
   FRONT_DESK: '/front-desk',
   DOCTOR: '/doctor',
   PHARMACIST: '/pharmacy',
-  BILLING_STAFF: '/billing',
 };
 
 function getSecret(): string {

@@ -6,7 +6,7 @@ import { requireSession, withHospitalContext } from '@/shared';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
 export default async function BillingPage({ searchParams }: { searchParams: { q?: string } }) {
-  const { hospitalId } = await requireSession(['BILLING_STAFF']);
+  const { hospitalId } = await requireSession(['PHARMACIST']);
   const query = searchParams.q?.trim() ?? '';
 
   const { readyToBill, bills } = await withHospitalContext(hospitalId, async (tx) => {

@@ -3,8 +3,47 @@ import { requireSession, withHospitalContext } from '@/shared';
 import { listWaitingQueue } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
+import { StatusBadge } from '@/app/components/StatusBadge';
 
-import { createVisitAction, registerPatientAction } from './actions';
+import { collectConsultationFeeAction, createVisitAction, registerPatientAction } from './actions';
+
+// Shared by every place the consultation fee is collected (walk-in
+// registration, "Create visit", and the waiting-queue "collect on arrival"
+// form) -- fee/discount in rupees (same convention as the billing module's
+// discount field, not a percentage), payment method one of the three the
+// front desk actually takes at the counter.
+function ConsultationFeeFields({
+  helpText,
+  required = false,
+}: {
+  helpText?: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="inline-fields">
+      <label>
+        Consultation fee (₹)
+        <input type="number" name="consultationFeeRupees" min={0} step="0.01" required={required} />
+      </label>
+      <label>
+        Referral discount (₹)
+        <input type="number" name="discountRupees" min={0} step="0.01" defaultValue={0} />
+      </label>
+      <label>
+        Payment method
+        <select name="paymentMethod" defaultValue="" required={required}>
+          <option value="" disabled>
+            Select…
+          </option>
+          <option value="CASH">Cash</option>
+          <option value="UPI">UPI</option>
+          <option value="CARD">Card</option>
+        </select>
+      </label>
+      {helpText && <p>{helpText}</p>}
+    </div>
+  );
+}
 
 // Local-time "YYYY-MM-DD" / "HH:mm" defaultValues for the separate
 // appointment date and time <input>s (split from one datetime-local field
@@ -175,6 +214,7 @@ export default async function FrontDeskPage({
                           <input type="time" name="visitTimeOnly" defaultValue={nowTime} required />
                         </label>
                       </div>
+                      <ConsultationFeeFields helpText="For a walk-in (now), fee and payment method are required. For a future appointment, leave them blank — collect the fee from the waiting queue once the patient arrives." />
                       <button type="submit">Create visit</button>
                     </form>
                   </td>
@@ -244,6 +284,7 @@ export default async function FrontDeskPage({
               <input type="time" name="visitTimeOnly" defaultValue={nowTime} />
             </label>
           </div>
+          <ConsultationFeeFields helpText="Only used if a doctor is assigned above. For a walk-in (now), fee and payment method are required. For a future appointment, leave them blank — collect the fee from the waiting queue once the patient arrives." />
           <button type="submit">Register patient</button>
         </form>
       </section>
@@ -258,12 +299,13 @@ export default async function FrontDeskPage({
               <th>Doctor</th>
               <th>Department</th>
               <th>Since</th>
+              <th>Consultation fee</th>
             </tr>
           </thead>
           <tbody>
             {queue.length === 0 && (
               <tr>
-                <td colSpan={5}>No patients waiting.</td>
+                <td colSpan={6}>No patients waiting.</td>
               </tr>
             )}
             {queue.map((visit) => (
@@ -275,6 +317,17 @@ export default async function FrontDeskPage({
                 <td>{visit.doctor.name}</td>
                 <td>{visit.department ?? '—'}</td>
                 <td>{visit.visitDate.toLocaleString()}</td>
+                <td>
+                  {visit.bills.length > 0 ? (
+                    <StatusBadge status="PAID" />
+                  ) : (
+                    <form action={collectConsultationFeeAction}>
+                      <input type="hidden" name="visitId" value={visit.id} />
+                      <ConsultationFeeFields required />
+                      <button type="submit">Collect fee</button>
+                    </form>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

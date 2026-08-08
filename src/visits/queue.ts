@@ -15,7 +15,7 @@ export async function listWaitingQueue(
     },
     orderBy: { visitDate: 'asc' },
     include: {
-      patient: { select: { id: true, patientCode: true, firstName: true, lastName: true } },
+      patient: { select: { id: true, patientCode: true, name: true } },
       doctor: { select: { id: true, name: true } },
       // Front desk collects the consultation fee itself (immediately for a
       // walk-in, or here later once a booked visit's patient arrives) -- a
@@ -56,9 +56,8 @@ export async function listVisitsForDoctor(
         select: {
           id: true,
           patientCode: true,
-          firstName: true,
-          lastName: true,
-          dateOfBirth: true,
+          name: true,
+          age: true,
           gender: true,
         },
       },

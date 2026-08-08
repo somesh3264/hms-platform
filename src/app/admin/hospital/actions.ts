@@ -1,7 +1,7 @@
 'use server';
 
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
-import { saveHospitalLogo } from '@/shared/storage';
+import { saveHospitalLogo, saveHospitalUpiQrCode } from '@/shared/storage';
 import { updateHospitalBranding } from '@/tenants';
 
 function optionalString(formData: FormData, key: string): string | undefined {
@@ -29,6 +29,17 @@ export async function updateHospitalBrandingAction(formData: FormData): Promise<
       logoUrl = saved.url;
     }
 
+    let upiQrCodeUrl: string | undefined;
+    const upiQrCode = formData.get('upiQrCode');
+    if (upiQrCode instanceof File && upiQrCode.size > 0) {
+      const saved = await saveHospitalUpiQrCode({
+        hospitalId,
+        fileName: upiQrCode.name,
+        data: Buffer.from(await upiQrCode.arrayBuffer()),
+      });
+      upiQrCodeUrl = saved.url;
+    }
+
     await withHospitalContext(hospitalId, (tx) =>
       updateHospitalBranding(tx, {
         hospitalId,
@@ -40,6 +51,7 @@ export async function updateHospitalBrandingAction(formData: FormData): Promise<
         gstin: optionalString(formData, 'gstin'),
         themeColor: optionalString(formData, 'themeColor'),
         logoUrl,
+        upiQrCodeUrl,
       }),
     );
   } catch (err) {

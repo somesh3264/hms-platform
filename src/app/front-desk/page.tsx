@@ -1,9 +1,12 @@
+import Link from 'next/link';
+
 import { searchPatients } from '@/patients';
-import { requireSession, withHospitalContext } from '@/shared';
+import { prisma, requireSession, withHospitalContext } from '@/shared';
 import { listWaitingQueue } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
+import { UpiQrCode } from '@/app/components/UpiQrCode';
 
 import { collectConsultationFeeAction, createVisitAction, registerPatientAction } from './actions';
 
@@ -13,17 +16,23 @@ import { collectConsultationFeeAction, createVisitAction, registerPatientAction 
 // discount field, not a percentage), payment method one of the three the
 // front desk actually takes at the counter.
 function ConsultationFeeFields({
-  helpText,
   required = false,
+  upiQrCodeUrl,
 }: {
-  helpText?: string;
   required?: boolean;
+  upiQrCodeUrl: string | null;
 }) {
   return (
     <div className="inline-fields">
       <label>
         Consultation fee (₹)
-        <input type="number" name="consultationFeeRupees" min={0} step="0.01" required={required} />
+        <input
+          type="text"
+          name="consultationFeeRupees"
+          inputMode="decimal"
+          pattern="[0-9]*\.?[0-9]*"
+          required={required}
+        />
       </label>
       <label>
         Referral discount (₹)
@@ -40,7 +49,7 @@ function ConsultationFeeFields({
           <option value="CARD">Card</option>
         </select>
       </label>
-      {helpText && <p>{helpText}</p>}
+      <UpiQrCode url={upiQrCodeUrl} />
     </div>
   );
 }
@@ -59,75 +68,6 @@ function toTimeOnlyValue(date: Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-// Native <input type="date"> pickers make the year hard to reach for a
-// birth date decades in the past (it's buried behind a small stepper, or
-// requires clicking back one month at a time) -- three plain <select>s let
-// staff jump straight to the year.
-function DateOfBirthFields() {
-  const currentYear = new Date().getFullYear();
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
-  const years = Array.from({ length: 121 }, (_, i) => currentYear - i);
-
-  return (
-    <div className="inline-fields">
-      <label>
-        Day
-        <select name="dobDay" required defaultValue="">
-          <option value="" disabled>
-            Day
-          </option>
-          {days.map((day) => (
-            <option key={day} value={day}>
-              {day}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Month
-        <select name="dobMonth" required defaultValue="">
-          <option value="" disabled>
-            Month
-          </option>
-          {MONTHS.map((month, index) => (
-            <option key={month} value={index + 1}>
-              {month}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Year
-        <select name="dobYear" required defaultValue="">
-          <option value="" disabled>
-            Year
-          </option>
-          {years.map((year) => (
-            <option key={year} value={year}>
-              {year}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
-  );
-}
-
 export default async function FrontDeskPage({
   searchParams,
 }: {
@@ -137,6 +77,11 @@ export default async function FrontDeskPage({
   const query = searchParams.q?.trim() ?? '';
   const nowDate = toDateOnlyValue(new Date());
   const nowTime = toTimeOnlyValue(new Date());
+
+  const hospital = await prisma.hospital.findUniqueOrThrow({
+    where: { id: hospitalId },
+    select: { upiQrCodeUrl: true },
+  });
 
   const { searchResults, queue, doctors } = await withHospitalContext(hospitalId, async (tx) => {
     const searchResults = query ? await searchPatients(tx, { hospitalId, query }) : [];
@@ -187,9 +132,7 @@ export default async function FrontDeskPage({
               {searchResults.map((patient) => (
                 <tr key={patient.id}>
                   <td>{patient.patientCode}</td>
-                  <td>
-                    {patient.firstName} {patient.lastName}
-                  </td>
+                  <td>{patient.name}</td>
                   <td>{patient.phone ?? '—'}</td>
                   <td>
                     <form action={createVisitAction}>
@@ -214,7 +157,7 @@ export default async function FrontDeskPage({
                           <input type="time" name="visitTimeOnly" defaultValue={nowTime} required />
                         </label>
                       </div>
-                      <ConsultationFeeFields helpText="For a walk-in (now), fee and payment method are required. For a future appointment, leave them blank — collect the fee from the waiting queue once the patient arrives." />
+                      <ConsultationFeeFields upiQrCodeUrl={hospital.upiQrCodeUrl} />
                       <button type="submit">Create visit</button>
                     </form>
                   </td>
@@ -229,15 +172,13 @@ export default async function FrontDeskPage({
         <h2>Register new patient</h2>
         <form key={searchParams.sid ?? 'idle'} action={registerPatientAction}>
           <label>
-            First name
-            <input type="text" name="firstName" required />
+            Name
+            <input type="text" name="name" required />
           </label>
           <label>
-            Last name
-            <input type="text" name="lastName" required />
+            Age
+            <input type="text" name="age" inputMode="numeric" pattern="[0-9]*" required />
           </label>
-          <label>Date of birth</label>
-          <DateOfBirthFields />
           <label>
             Gender
             <select name="gender" defaultValue="UNKNOWN">
@@ -249,7 +190,15 @@ export default async function FrontDeskPage({
           </label>
           <label>
             Phone
-            <input type="tel" name="phone" />
+            <input
+              type="tel"
+              name="phone"
+              inputMode="numeric"
+              pattern="[0-9]{10}"
+              maxLength={10}
+              title="10-digit phone number"
+              required
+            />
           </label>
           <label>
             Email
@@ -264,7 +213,7 @@ export default async function FrontDeskPage({
             Patient consents to digital delivery of bills/prescriptions
           </label>
           <label>
-            Assign doctor (optional — creates today&apos;s visit immediately)
+            Assign doctor
             <select name="doctorId" defaultValue="">
               <option value="">No appointment yet</option>
               {doctors.map((doctor) => (
@@ -284,7 +233,7 @@ export default async function FrontDeskPage({
               <input type="time" name="visitTimeOnly" defaultValue={nowTime} />
             </label>
           </div>
-          <ConsultationFeeFields helpText="Only used if a doctor is assigned above. For a walk-in (now), fee and payment method are required. For a future appointment, leave them blank — collect the fee from the waiting queue once the patient arrives." />
+          <ConsultationFeeFields upiQrCodeUrl={hospital.upiQrCodeUrl} />
           <button type="submit">Register patient</button>
         </form>
       </section>
@@ -300,19 +249,20 @@ export default async function FrontDeskPage({
               <th>Department</th>
               <th>Since</th>
               <th>Consultation fee</th>
+              <th>Other charges</th>
             </tr>
           </thead>
           <tbody>
             {queue.length === 0 && (
               <tr>
-                <td colSpan={6}>No patients waiting.</td>
+                <td colSpan={7}>No patients waiting.</td>
               </tr>
             )}
             {queue.map((visit) => (
               <tr key={visit.id}>
                 <td>{visit.tokenNumber ?? '—'}</td>
                 <td>
-                  {visit.patient.firstName} {visit.patient.lastName} ({visit.patient.patientCode})
+                  {visit.patient.name} ({visit.patient.patientCode})
                 </td>
                 <td>{visit.doctor.name}</td>
                 <td>{visit.department ?? '—'}</td>
@@ -323,10 +273,13 @@ export default async function FrontDeskPage({
                   ) : (
                     <form action={collectConsultationFeeAction}>
                       <input type="hidden" name="visitId" value={visit.id} />
-                      <ConsultationFeeFields required />
+                      <ConsultationFeeFields required upiQrCodeUrl={hospital.upiQrCodeUrl} />
                       <button type="submit">Collect fee</button>
                     </form>
                   )}
+                </td>
+                <td>
+                  <Link href={`/front-desk/bill/${visit.id}`}>Bill for surgery/procedure</Link>
                 </td>
               </tr>
             ))}

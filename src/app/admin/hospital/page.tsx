@@ -46,11 +46,7 @@ export default async function HospitalSettingsPage({
           </label>
           <label>
             Theme color
-            <input
-              type="color"
-              name="themeColor"
-              defaultValue={hospital.themeColor ?? '#2563eb'}
-            />
+            <input type="color" name="themeColor" defaultValue={hospital.themeColor ?? '#2563eb'} />
           </label>
           <label>
             Logo
@@ -59,6 +55,14 @@ export default async function HospitalSettingsPage({
               <img src={hospital.logoUrl} alt={hospital.name} style={{ maxHeight: '60px' }} />
             )}
             <input type="file" name="logo" accept="image/png,image/jpeg,image/webp" />
+          </label>
+          <label>
+            UPI QR code
+            {hospital.upiQrCodeUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={hospital.upiQrCodeUrl} alt="UPI QR code" style={{ maxHeight: '160px' }} />
+            )}
+            <input type="file" name="upiQrCode" accept="image/png,image/jpeg,image/webp" />
           </label>
           <button type="submit">Save</button>
         </form>

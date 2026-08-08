@@ -30,8 +30,7 @@ export default async function NewBillPage({
   return (
     <main>
       <h1>
-        Generate bill — {visit.patient.firstName} {visit.patient.lastName} (
-        {visit.patient.patientCode})
+        Generate bill — {visit.patient.name} ({visit.patient.patientCode})
       </h1>
 
       <FlashMessage success={searchParams.success} error={searchParams.error} />

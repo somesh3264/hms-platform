@@ -8,11 +8,7 @@ import { StatusBadge } from '@/app/components/StatusBadge';
 // FR-8.1/FR-8.2: a single consolidated view of a patient's visits,
 // prescriptions, and bills, with links to open any past prescription scan
 // or bill. Open to any authenticated staff role.
-export default async function PatientRecordPage({
-  params,
-}: {
-  params: { patientId: string };
-}) {
+export default async function PatientRecordPage({ params }: { params: { patientId: string } }) {
   const { hospitalId } = await requireSession();
 
   const { patient, visits } = await withHospitalContext(hospitalId, (tx) =>
@@ -22,14 +18,14 @@ export default async function PatientRecordPage({
   return (
     <main>
       <h1>
-        {patient.firstName} {patient.lastName} ({patient.patientCode})
+        {patient.name} ({patient.patientCode})
       </h1>
 
       <section>
         <h2>Demographics</h2>
         <dl>
-          <dt>Date of birth</dt>
-          <dd>{patient.dateOfBirth.toLocaleDateString()}</dd>
+          <dt>Age</dt>
+          <dd>{patient.age}</dd>
           <dt>Gender</dt>
           <dd>{patient.gender}</dd>
           <dt>Phone</dt>

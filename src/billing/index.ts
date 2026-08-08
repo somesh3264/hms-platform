@@ -5,6 +5,8 @@ export { recordPayment } from './payment';
 export type { RecordPaymentInput } from './payment';
 export { collectConsultationFee } from './consultation-fee';
 export type { CollectConsultationFeeInput } from './consultation-fee';
+export { collectFrontDeskCharges } from './front-desk-charges';
+export type { CollectFrontDeskChargesInput, FrontDeskChargeInput } from './front-desk-charges';
 export { searchBills } from './search';
 export { getBillDetail } from './detail';
 export { generateBillNumber } from './bill-number';

@@ -33,7 +33,7 @@ export default async function VisitDetailPage({
   return (
     <main>
       <h1>
-        {visit.patient.firstName} {visit.patient.lastName} ({visit.patient.patientCode})
+        {visit.patient.name} ({visit.patient.patientCode})
       </h1>
 
       <FlashMessage success={searchParams.success} error={searchParams.error} />
@@ -41,8 +41,8 @@ export default async function VisitDetailPage({
       <section>
         <h2>Patient</h2>
         <dl>
-          <dt>Date of birth</dt>
-          <dd>{visit.patient.dateOfBirth.toLocaleDateString()}</dd>
+          <dt>Age</dt>
+          <dd>{visit.patient.age}</dd>
           <dt>Gender</dt>
           <dd>{visit.patient.gender}</dd>
           <dt>Phone</dt>

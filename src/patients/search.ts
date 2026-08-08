@@ -13,8 +13,7 @@ export async function searchPatients(
     where: {
       hospitalId: params.hospitalId,
       OR: [
-        { firstName: { contains: query, mode: 'insensitive' } },
-        { lastName: { contains: query, mode: 'insensitive' } },
+        { name: { contains: query, mode: 'insensitive' } },
         { phone: { contains: query, mode: 'insensitive' } },
         { patientCode: { contains: query, mode: 'insensitive' } },
       ],

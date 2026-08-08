@@ -18,6 +18,12 @@ model Hospital {
   id           String         @id @default(cuid())
   name         String
   logoUrl      String?        @map("logo_url")
+  // Hospital Admin-uploaded UPI QR code (FR-7.5-adjacent, a later,
+  // explicitly requested addition), shown wherever staff can select UPI as
+  // a payment method so the patient can scan-to-pay directly. Same
+  // upload/storage pattern as logoUrl, not a raw UPI ID/VPA -- see
+  // saveHospitalUpiQrCode in src/shared/storage.ts.
+  upiQrCodeUrl String?        @map("upi_qr_code_url")
   address      String?
   contactPhone String?        @map("contact_phone")
   contactEmail String?        @map("contact_email")
@@ -107,9 +113,8 @@ model Patient {
   hospitalId  String   @map("hospital_id")
   hospital    Hospital @relation(fields: [hospitalId], references: [id])
   patientCode String   @map("patient_code")
-  firstName   String   @map("first_name")
-  lastName    String   @map("last_name")
-  dateOfBirth DateTime @map("date_of_birth")
+  name        String
+  age         Int
   gender      Gender   @default(UNKNOWN)
   phone       String?
   email       String?

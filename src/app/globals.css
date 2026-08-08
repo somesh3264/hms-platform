@@ -409,22 +409,24 @@ main > header p {
   max-width: 480px;
 }
 
-/* Groups a few short fields on one row -- date-of-birth's day/month/year
-   selects, and appointment date+time as two separate fields (see
-   src/app/front-desk/page.tsx). */
+/* Groups a few short fields on one row -- appointment date+time, and the
+   consultation-fee/discount/payment-method trio (see
+   src/app/front-desk/page.tsx). Wraps onto multiple lines rather than
+   squeezing fields down (or, worse, wrapping a label's own text) when
+   there isn't room for all of them on one line -- e.g. the waiting queue's
+   "Collect fee" form, which renders this same group inside a narrow table
+   cell. */
 .inline-fields {
   display: flex;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   align-items: flex-end;
+  margin-bottom: 1rem;
 }
 
 .inline-fields > label {
   margin-bottom: 0;
-}
-
-.inline-fields select,
-.inline-fields input {
-  min-width: 0;
+  white-space: nowrap;
 }
 
 .alert {

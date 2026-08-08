@@ -49,8 +49,7 @@ export default async function PharmacyQueuePage() {
                 <tr key={prescription.id}>
                   <td>{prescription.createdAt.toLocaleString()}</td>
                   <td>
-                    {prescription.patient.firstName} {prescription.patient.lastName} (
-                    {prescription.patient.patientCode})
+                    {prescription.patient.name} ({prescription.patient.patientCode})
                   </td>
                   <td>{prescription.visit.department ?? '—'}</td>
                   <td>{prescription.uploadedBy.name}</td>

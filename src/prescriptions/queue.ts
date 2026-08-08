@@ -12,7 +12,7 @@ export async function listPharmacyQueue(tx: Prisma.TransactionClient, hospitalId
     where: { hospitalId, status: 'UPLOADED' },
     orderBy: { createdAt: 'asc' },
     include: {
-      patient: { select: { id: true, patientCode: true, firstName: true, lastName: true } },
+      patient: { select: { id: true, patientCode: true, name: true } },
       visit: { select: { id: true, department: true } },
       uploadedBy: { select: { id: true, name: true } },
     },

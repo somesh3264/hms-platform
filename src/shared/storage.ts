@@ -60,6 +60,28 @@ export async function saveHospitalLogo(params: SaveHospitalLogoParams): Promise<
   return { url: `/api/uploads/${storageKey}`, storageKey };
 }
 
+export interface SaveHospitalUpiQrCodeParams {
+  hospitalId: string;
+  fileName: string;
+  data: Buffer;
+}
+
+// Same shape as saveHospitalLogo, its own function for the same reason:
+// this is an admin-uploaded image (the hospital's own UPI QR, exported from
+// whatever UPI app they already use to collect payments), not something
+// derived from a raw UPI ID -- there's no visit to hang the key off of.
+export async function saveHospitalUpiQrCode(
+  params: SaveHospitalUpiQrCodeParams,
+): Promise<SavedFile> {
+  const storageKey = `${params.hospitalId}/upi-qr/${randomUUID()}-${sanitizeFileName(params.fileName)}`;
+  const filePath = path.join(UPLOAD_ROOT, storageKey);
+
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, params.data);
+
+  return { url: `/api/uploads/${storageKey}`, storageKey };
+}
+
 // Resolves a storage key (the path segment after /api/uploads/) back to
 // bytes + content type. Rejects anything that would escape UPLOAD_ROOT.
 export async function readStoredFile(

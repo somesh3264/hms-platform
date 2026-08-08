@@ -31,8 +31,7 @@ export default async function DispensePrescriptionPage({
   return (
     <main>
       <h1>
-        {prescription.patient.firstName} {prescription.patient.lastName} (
-        {prescription.patient.patientCode})
+        {prescription.patient.name} ({prescription.patient.patientCode})
       </h1>
 
       <FlashMessage success={searchParams.success} error={searchParams.error} />

@@ -12,7 +12,7 @@ export async function listVisitsReadyToBill(tx: Prisma.TransactionClient, hospit
     },
     orderBy: { visitDate: 'desc' },
     include: {
-      patient: { select: { id: true, patientCode: true, firstName: true, lastName: true } },
+      patient: { select: { id: true, patientCode: true, name: true } },
     },
   });
 }

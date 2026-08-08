@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { Gender, VisitStatus } from '@prisma/client';
 
 import { listLowStockMedicines } from '@/inventory';
-import { calculateAge, searchPatients } from '@/patients';
+import { searchPatients } from '@/patients';
 import { getISTDayBoundsUTC, requireSession, withHospitalContext } from '@/shared';
 import { listVisitsForDoctor } from '@/visits';
 
@@ -82,7 +82,10 @@ export default async function DoctorQueuePage({
 
       <section>
         <h2>Find a patient</h2>
-        <p>Look up any patient by name, ID, or phone — including walk-ins or past patients not in today&apos;s queue.</p>
+        <p>
+          Look up any patient by name, ID, or phone — including walk-ins or past patients not in
+          today&apos;s queue.
+        </p>
         <form method="get">
           <input
             type="text"
@@ -112,9 +115,7 @@ export default async function DoctorQueuePage({
               {searchResults.map((patient) => (
                 <tr key={patient.id}>
                   <td>{patient.patientCode}</td>
-                  <td>
-                    {patient.firstName} {patient.lastName}
-                  </td>
+                  <td>{patient.name}</td>
                   <td>{patient.phone ?? '—'}</td>
                   <td>
                     <Link href={`/patients/${patient.id}`}>View record</Link>
@@ -159,9 +160,8 @@ function VisitList({
     visitDate: Date;
     patient: {
       patientCode: string;
-      firstName: string;
-      lastName: string;
-      dateOfBirth: Date;
+      name: string;
+      age: number;
       gender: Gender;
     };
   }[];
@@ -191,9 +191,9 @@ function VisitList({
           <tr key={visit.id}>
             <td>{visit.tokenNumber ?? '—'}</td>
             <td>
-              {visit.patient.firstName} {visit.patient.lastName} ({visit.patient.patientCode})
+              {visit.patient.name} ({visit.patient.patientCode})
             </td>
-            <td>{calculateAge(visit.patient.dateOfBirth)}</td>
+            <td>{visit.patient.age}</td>
             <td>{visit.patient.gender}</td>
             <td>{visit.department ?? '—'}</td>
             <td>{visit.visitDate.toLocaleString()}</td>

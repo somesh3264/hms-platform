@@ -6,9 +6,8 @@ export interface UpdatePatientDemographicsInput {
   hospitalId: string;
   actorId: string;
   patientId: string;
-  firstName?: string;
-  lastName?: string;
-  dateOfBirth?: Date;
+  name?: string;
+  age?: number;
   gender?: Gender;
   phone?: string;
   email?: string;
@@ -24,11 +23,17 @@ export async function updatePatientDemographics(
 ): Promise<Patient> {
   const { hospitalId, actorId, patientId, ...changes } = input;
 
-  if (changes.firstName !== undefined && !changes.firstName.trim()) {
-    throw new Error('First name cannot be empty.');
+  if (changes.name !== undefined && !changes.name.trim()) {
+    throw new Error('Name cannot be empty.');
   }
-  if (changes.lastName !== undefined && !changes.lastName.trim()) {
-    throw new Error('Last name cannot be empty.');
+  if (
+    changes.age !== undefined &&
+    (!Number.isInteger(changes.age) || changes.age < 0 || changes.age > 150)
+  ) {
+    throw new Error('Age must be a whole number between 0 and 150.');
+  }
+  if (changes.phone !== undefined && !/^\d{10}$/.test(changes.phone)) {
+    throw new Error('Phone number must be exactly 10 digits.');
   }
 
   // hospitalId is part of the UPDATE's WHERE clause (not just relied on via
@@ -38,8 +43,7 @@ export async function updatePatientDemographics(
     where: { id: patientId, hospitalId },
     data: {
       ...changes,
-      firstName: changes.firstName?.trim(),
-      lastName: changes.lastName?.trim(),
+      name: changes.name?.trim(),
     },
   });
   if (count === 0) {

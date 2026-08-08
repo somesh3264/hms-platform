@@ -14,8 +14,7 @@ export async function searchBills(
   if (query) {
     where.OR = [
       { billNumber: { contains: query, mode: 'insensitive' } },
-      { patient: { firstName: { contains: query, mode: 'insensitive' } } },
-      { patient: { lastName: { contains: query, mode: 'insensitive' } } },
+      { patient: { name: { contains: query, mode: 'insensitive' } } },
       { patient: { patientCode: { contains: query, mode: 'insensitive' } } },
     ];
   }
@@ -32,6 +31,6 @@ export async function searchBills(
     where,
     orderBy: { createdAt: 'desc' },
     take: params.limit ?? 50,
-    include: { patient: { select: { firstName: true, lastName: true, patientCode: true } } },
+    include: { patient: { select: { name: true, patientCode: true } } },
   });
 }

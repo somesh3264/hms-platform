@@ -32,62 +32,54 @@ function combineDateAndTime(
   return parsed;
 }
 
-// Combines the three <select>s from DateOfBirthFields (src/app/front-desk/page.tsx)
-// into a Date, the same "YYYY-MM-DD" -> new Date(...) construction the
-// single <input type="date"> used before (parsed as UTC midnight) -- but
-// now with real-calendar-date validation, since three independent selects
-// can produce a combination (e.g. 30 February) a native date picker would
-// never have let through.
-function parseDateOfBirth(
-  year: string | undefined,
-  month: string | undefined,
-  day: string | undefined,
-): Date {
-  if (!year || !month || !day) {
-    throw new Error('Date of birth is required.');
+// Age is a plain whole number entered directly (a later, explicitly
+// requested simplification replacing the old day/month/year date-of-birth
+// selects) -- validated here rather than trusting the form's own
+// min/max/pattern attributes, since those are only a UX hint, not enforced
+// server-side.
+function parseAge(raw: string | undefined): number {
+  if (!raw) {
+    throw new Error('Age is required.');
   }
-  const y = Number(year);
-  const m = Number(month);
-  const d = Number(day);
-  const iso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  const parsed = new Date(iso);
-  if (
-    Number.isNaN(parsed.getTime()) ||
-    parsed.getUTCFullYear() !== y ||
-    parsed.getUTCMonth() !== m - 1 ||
-    parsed.getUTCDate() !== d
-  ) {
-    throw new Error('Invalid date of birth.');
+  const age = Number(raw);
+  if (!Number.isInteger(age) || age < 0 || age > 150) {
+    throw new Error('Age must be a whole number between 0 and 150.');
   }
-  return parsed;
+  return age;
 }
 
 // Collects the consultation fee at the front desk (BRS-adjacent addition,
-// no FR number) -- immediately if the visit being created is "now" (a
-// walk-in), or deferred if it's a future-dated appointment, in which case
-// front desk collects it later via collectConsultationFeeAction once the
-// patient actually arrives (see the waiting-queue form in page.tsx). A
-// visit with no explicit date defaults to now in createVisit, so undefined
-// counts as a walk-in here too. Referral discount is entered in rupees,
-// same convention as the billing module's discount field.
+// no FR number) -- immediately if front desk actually typed a fee amount
+// (a walk-in, or a booked patient paying up front over the phone), or
+// deferred if the fee field was left blank, in which case front desk
+// collects it later via collectConsultationFeeAction once the patient
+// arrives (see the waiting-queue form in page.tsx). Deliberately keyed off
+// whether the fee field was filled in, not the appointment date/time --
+// an earlier date-based version silently discarded a fee front desk had
+// typed in whenever the appointment time happened to read as "in the
+// future" (e.g. a booked slot later that same day), with no error and no
+// visible sign the money wasn't collected. This way the decision is fully
+// in front desk's hands: type an amount and it's charged now, leave it
+// blank and it's deferred -- no guessing from the clock. Referral discount
+// is entered in rupees, same convention as the billing module's discount
+// field.
 async function maybeCollectConsultationFee(
   tx: Prisma.TransactionClient,
   params: {
     hospitalId: string;
     actorId: string;
     visitId: string;
-    visitDate: Date | undefined;
     formData: FormData;
   },
 ): Promise<boolean> {
-  const isWalkIn = !params.visitDate || params.visitDate.getTime() <= Date.now();
-  if (!isWalkIn) {
+  const feeProvided = optionalString(params.formData, 'consultationFeeRupees');
+  if (!feeProvided) {
     return false;
   }
 
-  const feeRupees = Number(params.formData.get('consultationFeeRupees'));
+  const feeRupees = Number(feeProvided);
   if (!Number.isFinite(feeRupees) || feeRupees <= 0) {
-    throw new Error('A consultation fee amount is required to register a walk-in visit.');
+    throw new Error('Consultation fee must be a valid amount greater than zero.');
   }
   const discountRupees = Number(params.formData.get('discountRupees') ?? 0);
   const paymentMethod = optionalString(params.formData, 'paymentMethod');
@@ -111,16 +103,15 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
 
   let feeCollected = false;
   try {
-    const firstName = optionalString(formData, 'firstName');
-    const lastName = optionalString(formData, 'lastName');
-    if (!firstName || !lastName) {
-      throw new Error('First name, last name, and date of birth are required.');
+    const name = optionalString(formData, 'name');
+    if (!name) {
+      throw new Error('Name is required.');
     }
-    const dateOfBirth = parseDateOfBirth(
-      optionalString(formData, 'dobYear'),
-      optionalString(formData, 'dobMonth'),
-      optionalString(formData, 'dobDay'),
-    );
+    const age = parseAge(optionalString(formData, 'age'));
+    const phone = optionalString(formData, 'phone');
+    if (!phone) {
+      throw new Error('Phone number is required.');
+    }
 
     // Assigning a doctor is optional here -- if chosen, a visit/appointment is
     // created for the new patient in the same step (FR-3.2 + FR-3.4 combined,
@@ -138,11 +129,10 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
       const patient = await registerPatient(tx, {
         hospitalId,
         actorId,
-        firstName,
-        lastName,
-        dateOfBirth,
+        name,
+        age,
         gender: optionalString(formData, 'gender') as Gender | undefined,
-        phone: optionalString(formData, 'phone'),
+        phone,
         email: optionalString(formData, 'email'),
         address: optionalString(formData, 'address'),
         consentDigitalDelivery: formData.get('consentDigitalDelivery') === 'on',
@@ -162,7 +152,6 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
         hospitalId,
         actorId,
         visitId: visit.id,
-        visitDate,
         formData,
       });
     });
@@ -209,7 +198,6 @@ export async function createVisitAction(formData: FormData): Promise<void> {
         hospitalId,
         actorId,
         visitId: visit.id,
-        visitDate,
         formData,
       });
     });

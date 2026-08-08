@@ -2,15 +2,19 @@ import { getBillDetail } from '@/billing';
 import { requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
+import { PrintBillButton } from '@/app/components/PrintBillButton';
 import { StatusBadge } from '@/app/components/StatusBadge';
+import { UpiQrCode } from '@/app/components/UpiQrCode';
 
 import { recordPaymentAction } from './actions';
 
-// Printable via the browser's native print (Ctrl/Cmd+P) -- no PDF library
-// dependency, no client component. @media print hides the payment form and
-// nav so what prints is just the invoice, satisfying FR-7.6 (print/export
-// with hospital name and logo) without server-side PDF generation, which
-// the TRD calls for but isn't built here.
+// Printable via the browser's native print (Ctrl/Cmd+P, or the explicit
+// PrintBillButton below) -- no PDF library dependency. @media print hides
+// the payment form/nav/button so what prints is just the invoice,
+// satisfying FR-7.6 (print/export with hospital name and logo) without
+// server-side PDF generation, which the TRD calls for but isn't built here;
+// "download" is the browser's own print dialog's "Save as PDF" destination,
+// not a separately generated file.
 export default async function BillDetailPage({
   params,
   searchParams,
@@ -44,6 +48,7 @@ export default async function BillDetailPage({
 
       <div className="no-print">
         <FlashMessage success={searchParams.success} error={searchParams.error} />
+        <PrintBillButton />
       </div>
 
       <section>
@@ -51,7 +56,7 @@ export default async function BillDetailPage({
         <dl>
           <dt>Patient</dt>
           <dd>
-            {bill.patient.firstName} {bill.patient.lastName} ({bill.patient.patientCode})
+            {bill.patient.name} ({bill.patient.patientCode})
           </dd>
           <dt>Visit date</dt>
           <dd>{bill.visit.visitDate.toLocaleDateString()}</dd>
@@ -87,8 +92,12 @@ export default async function BillDetailPage({
         <dl>
           <dt>Subtotal</dt>
           <dd>₹{(bill.subtotalCents / 100).toFixed(2)}</dd>
-          <dt>Discount</dt>
-          <dd>-₹{(bill.discountCents / 100).toFixed(2)}</dd>
+          {bill.discountCents > 0 && (
+            <>
+              <dt>Discount</dt>
+              <dd>-₹{(bill.discountCents / 100).toFixed(2)}</dd>
+            </>
+          )}
           <dt>Tax</dt>
           <dd>₹{(bill.taxCents / 100).toFixed(2)}</dd>
           <dt>
@@ -124,6 +133,7 @@ export default async function BillDetailPage({
               Reference (UPI UTR, or a cash receipt note)
               <input type="text" name="paymentReference" />
             </label>
+            <UpiQrCode url={bill.hospital.upiQrCodeUrl} />
             <button type="submit">Record payment</button>
           </form>
         </section>

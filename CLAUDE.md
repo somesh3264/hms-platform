@@ -140,8 +140,8 @@ data-access functions (see the module sections below):
 - `patients` — `searchPatients`, `registerPatient`, `updatePatientDemographics`, `generatePatientCode`, `getPatientHistory` (`Patient`)
 - `visits` — `createVisit`, `listWaitingQueue`, `listVisitsForDoctor`, `getVisitDetail`, `startConsultation`, `saveConsultationNotes`, `completeConsultation` (`Visit`)
 - `prescriptions` — `uploadPrescription`, `replacePrescription`, `listPharmacyQueue`, `getPrescriptionDetail` (`Prescription`)
-- `inventory` — `searchMedicines`, `listMedicines`, `listLowStockMedicines`, `dispenseItem`, `finalizeDispensing` (`Medicine`; no DB-level uniqueness on name/batch, dedupe is app-level)
-- `billing` — `listVisitsReadyToBill`, `createBill`, `collectConsultationFee` (front desk's own standalone fee `Bill`, see "Front desk registration" below), `recordPayment`, `searchBills`, `getBillDetail`, `generateBillNumber` (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers)
+- `inventory` — `searchMedicines`, `listMedicines`, `listLowStockMedicines`, `dispenseItem`, `finalizeDispensing`, `addMedicineStock` (`Medicine`; no DB-level uniqueness on name/batch, dedupe is app-level)
+- `billing` — `listVisitsReadyToBill`, `createBill`, `collectFrontDeskCharges` + `collectConsultationFee` (front desk's own standalone `Bill`s, see "Front desk registration" below), `recordPayment`, `searchBills`, `getBillDetail`, `generateBillNumber` (`Bill` + `BillLineItem`, amounts stored as `*Cents` integers)
 - `shared` — cross-module utilities: Prisma client singleton (`prisma.ts`), `withHospitalContext`
   (`tenant-context.ts`), `recordAuditLog` (`audit-log.ts`), the local-disk file storage stand-in
   (`storage.ts`, see "Prescription digitization" below), and the signed-cookie session
@@ -352,12 +352,19 @@ server-side in `combineDateAndTime` back into the single `Visit.visitDate`
 book a call-in patient for a specific future slot (e.g. an evening
 appointment requested in the morning); **queue and "next patient" ordering
 are based on this scheduled time, not check-in/token order** (see below).
-Date of birth is similarly three `<select>`s (day/month/year, see
-`DateOfBirthFields`) rather than a native `<input type="date">` -- that
-picker buries the year behind a small stepper, making it impractical to
-reach a birth year decades back. Since three independent selects can
-express a combination a native picker never would (e.g. 30 February),
-`parseDateOfBirth` validates the result is a real calendar date.
+**Patient identity is a single `name` field and a plain integer `age`**
+(a later, explicitly requested simplification -- `Patient` originally had
+separate `firstName`/`lastName` and a `dateOfBirth`, replaced via the
+hand-written `*_patient_name_and_age` migration, which backfills existing
+rows rather than dropping data: `name` from the concatenated first/last
+name, `age` computed from the stored date of birth as of the migration
+date). `age` is entered directly by front desk (`parseAge` in
+`src/app/front-desk/actions.ts` validates a whole number, 0–150) -- it's a
+snapshot as of registration, not derived from a birth date, so it does
+**not** stay accurate on its own in later years the way age-from-DOB would;
+that tradeoff was chosen deliberately for simplicity over long-term
+accuracy. There's no more `calculateAge` helper -- every screen that used
+to compute age from `dateOfBirth` now just reads `patient.age` directly.
 
 **Token/queue number (FR-3.7/FR-3.8)**: every visit gets an
 auto-assigned, display-only queue number via `generateTokenNumber`
@@ -399,24 +406,33 @@ still shows up correctly everywhere a `Bill` does (`/billing/[billId]`,
 function rather than a call into the billing module's `createBill` --
 `createBill` also sweeps in any dispensed-but-unbilled medicine line items
 for the visit, which would wrongly fold a later medicine bill into what's
-meant to stay a standalone reception-desk fee. **Walk-in vs. booked decides
-whether the fee is collected now or deferred**: `maybeCollectConsultationFee`
-(`src/app/front-desk/actions.ts`) treats the visit's resolved `visitDate` as
-the signal -- `<= now` (a walk-in, or no explicit date/time entered) collects
-the fee immediately in the same `registerPatientAction`/`createVisitAction`
-transaction, requiring the fee amount and payment method be filled in;
-a future date/time (a booked appointment) skips collection there entirely,
-even if those fields were filled in, on the assumption front desk will
-collect it later. There's no separate "arrived" status to drive this --
-skipping is purely a same-transaction convenience, and the deferred fee is
-always collected via the waiting queue below regardless of whether the
-appointment time has technically passed yet. **Referral discount is entered
+meant to stay a standalone reception-desk fee. **Whether the fee amount was
+actually typed in decides collect-now vs. defer**: `maybeCollectConsultationFee`
+(`src/app/front-desk/actions.ts`) checks whether the `consultationFeeRupees`
+field was filled in at all -- if so, it collects the fee immediately in the
+same `registerPatientAction`/`createVisitAction` transaction, requiring the
+payment method too; left blank, it skips collection there entirely, on the
+assumption front desk will collect it later (a booked-over-the-phone
+appointment whose fee isn't being paid at booking time). This was
+deliberately changed from an earlier version keyed off the visit's
+`visitDate` (`<= now` = walk-in) -- that comparison silently discarded a
+fee front desk had actually typed in whenever the appointment time
+happened to read as "in the future" (e.g. a same-day booked slot later
+that afternoon), with no error and no visible sign the money wasn't
+collected. Keying off the fee field instead puts the decision fully in
+front desk's hands: type an amount and it's charged now, leave it blank
+and it's deferred, regardless of what the appointment date/time say. The
+deferred fee is always collected via the waiting queue below, whenever
+front desk gets to it. **Referral discount is entered
 in rupees, not a percentage** (`discountRupees` on the fee form, same
 convention as the billing module's existing discount field) -- for patients
 referred by a friend or relative, at front desk's discretion, no separate
 "referral" record kept. **Payment method is cash, UPI, or card**
 (`PaymentMethod` enum gained `CARD` for this -- the billing module's
-`recordPayment` was previously UPI/Cash only, FR-7.5). For a deferred/booked
+`recordPayment` was previously UPI/Cash only, FR-7.5); selecting UPI shows
+the hospital's admin-configured QR code (`UpiQrCode`, see "Hospital
+branding admin" below) alongside the field, always visible when one's
+configured rather than toggled on selection. For a deferred/booked
 visit, the waiting queue's new "Consultation fee" column carries a
 `collectConsultationFeeAction` form directly in that row (fee/discount/
 payment method, all required this time since this path always collects on
@@ -428,6 +444,32 @@ step, since dispensing (and so a medicine bill) requires the visit to have
 already passed through `IN_CONSULTATION`, so "any `PAID` bill exists"
 reliably means "fee already collected," without needing to match on the
 line item description.
+
+**Other front-desk charges (surgery, procedures, etc.)** (a later, explicitly
+requested addition): `collectConsultationFee` turned out to be a special
+case of a more general need -- front desk billing for things besides the
+consultation fee. `collectFrontDeskCharges`
+(`src/billing/front-desk-charges.ts`) generalizes it to any number of named
+charges combined into one `Bill` with one payment collection;
+`collectConsultationFee` is now a thin wrapper that calls it with a single
+`{ description: 'Consultation fee', amountCents }` charge (still its own
+named function, not inlined at the call sites, since the walk-in/booked
+deferral logic in `maybeCollectConsultationFee` only ever deals with this
+one fee). The waiting queue's new "Other charges" column links to
+`/front-desk/bill/[visitId]` (`collectFrontDeskChargesAction`) -- a small
+dedicated page rather than another inline queue-row form, since entering
+several charges inline in a table cell doesn't fit. That page renders a
+**fixed number of blank description+amount row pairs** (`CHARGE_ROWS = 4`)
+using repeated same-`name` fields (`chargeDescription` / `chargeAmount`)
+rather than a dynamic add-row list -- this app has no client-side JS to grow
+a form, and `FormData.getAll(...)` pairs the two arrays up by position
+without needing per-row indices in the field names. A row needs both fields
+filled to count toward the bill; a row with only one filled is rejected as
+a mistake rather than silently dropped. Same rupee discount and cash/UPI/
+card payment method as consultation-fee collection, and the resulting bill
+is a normal `Bill` -- viewable at `/billing/[billId]`, searchable, and shown
+in the patient longitudinal view -- indistinguishable from a
+consultation-fee bill except for its line item descriptions.
 
 ### Doctor consultation (`src/app/doctor`, `src/visits`, `src/patients`)
 
@@ -447,10 +489,9 @@ Gated to the `DOCTOR` role via `requireSession(['DOCTOR'])` (see
 narrower WAITING/IN_CONSULTATION-only, no-date-bound query it used before
 -- completed visits are now retained (dimmed via the `muted-section` CSS
 class, not removed) so the doctor can reopen one. Per-row token number
-(FR-3.7's daily counter, display-only), age (`calculateAge`,
-`src/patients/age.ts` -- a pure function over `dateOfBirth`, same "derived
-not stored" approach as `src/inventory/status.ts`'s low-stock/expiry
-flags), gender, and an explicit `StatusBadge` satisfy FR-4.7. The
+(FR-3.7's daily counter, display-only), age (`patient.age`, entered
+directly at registration -- see "Front desk registration" above), gender,
+and an explicit `StatusBadge` satisfy FR-4.7. The
 waiting/in-consultation/completed/total counts (FR-4.8) are derived from
 the one fetched list, no extra query. The search box (FR-4.9) reuses
 `searchPatients` exactly like `/patients` and `/front-desk`, linking results
@@ -543,6 +584,27 @@ doctors "when prescribing" — `/doctor`'s queue page shows the same
 `listLowStockMedicines` list as a banner; keep both in sync if this logic
 changes.
 
+**Adding medicine stock (FR-6.4's missing write path)**: until now, every
+`Medicine` row came from `prisma/seed.mjs` -- there was no in-app way to add
+one. `/pharmacy/inventory`'s "Add stock" form and `addMedicineStock`
+(`src/inventory/add-stock.ts`) fill that gap, serving both onboarding a
+brand-new medicine and restocking an existing one through the same fields
+(name, optional salt composition/batch number/expiry, unit price, quantity
+to add, and reorder level/threshold that only apply when creating new).
+Since `Medicine` has no DB-level uniqueness on name/batch (see the
+`inventory` bullet in "Module layout" above), `addMedicineStock` does the
+dedupe itself: a case-insensitive name match with the same batch number
+(including two blank batch numbers matching each other, since most stock
+here isn't batch-tracked) increments that row's `stockQuantity` and
+refreshes its unit price/expiry to what was just entered, rather than
+creating a visually-duplicate second row -- no match creates a new row.
+Returns `{ medicine, merged }` so the calling action can flash a different
+message for "restocked" vs. "new medicine added." This pre-check-then-write
+shape (not a single atomic upsert) mirrors `createUser`/`updateUser`'s
+existing duplicate-email pre-check, not `dispenseItem`'s atomic conditional
+update -- acceptable here since concurrent identical restocks by the same
+pharmacist aren't a realistic race, unlike concurrent dispensing.
+
 **Finalizing dispensing hands straight into billing, same role, same
 session** (a later, explicitly requested change -- see "Pharmacist billing"
 below): `finalizeDispensingAction` (`src/app/pharmacy/[prescriptionId]/actions.ts`)
@@ -585,7 +647,15 @@ Printing uses the browser's native print (a
 `<style>{'@media print {...}'}</style>` block hides the payment form/nav),
 not a PDF library -- the TRD calls for server-side PDF generation, which
 isn't built; this is a dependency-free stand-in worth reconsidering if a
-real branded PDF becomes a hard requirement.
+real branded PDF becomes a hard requirement. `PrintBillButton`
+(`src/app/components/PrintBillButton.tsx`) makes this discoverable as an
+explicit "Print / Download PDF" button (`window.print()`) instead of
+requiring staff to know the Ctrl/Cmd+P shortcut -- "download" is just the
+browser's own print dialog's "Save as PDF" destination, not a separately
+generated file. This is the **one deliberate exception** to the app's
+no-client-components convention everywhere else: `window.print()` only
+exists in the browser, so this one small piece is a `'use client'`
+component, not a form/link like every other interactive element in the app.
 
 ### Pharmacist billing (no separate BILLING_STAFF role)
 
@@ -655,7 +725,30 @@ Confirmed directly: a script that called `updateHospitalBranding` with only
 `address` set (omitting the other optional fields, unlike the real form)
 wiped the hospital's `gstin` as a side effect -- the function behaving
 exactly as designed, not a bug, but a sharp edge worth knowing before
-scripting against it outside the real form.
+scripting against it outside the real form. `logoUrl`/`upiQrCodeUrl` are the
+one exception to that full-overwrite rule: since a `<input type="file">` is
+never pre-filled with the existing upload, submitting the form again
+without choosing a new file leaves the existing one in place (`...(input.X
+? { X: input.X } : {})`) rather than nulling it out -- otherwise re-saving
+any other field would silently delete the logo/QR code.
+
+**UPI QR code** (a later, explicitly requested addition, not a numbered
+BRS/TRD FR): `upiQrCodeUrl` on `Hospital` is an admin-uploaded image
+(`saveHospitalUpiQrCode` in `src/shared/storage.ts`, same shape as
+`saveHospitalLogo` -- the hospital's own QR exported from whatever UPI app
+they already use to collect payments, not something generated from a raw
+UPI ID/VPA). `UpiQrCode` (`src/app/components/UpiQrCode.tsx`) renders it
+wherever staff can pick UPI as a payment method -- front desk's
+consultation-fee/other-charges collection and the pharmacist's bill payment
+form -- and is **always shown when configured, not toggled based on which
+payment method is currently selected**: this app has no client-side JS to
+react to a `<select>`'s live value (the one exception, `PrintBillButton`,
+exists only because `window.print()` has no non-JS equivalent at all), so a
+small always-visible, clearly labeled code is the dependency-free
+alternative to a dynamic show/hide. Only `HOSPITAL_ADMIN` can upload one
+(the same role gate as the rest of this screen); it never appears on the
+printable invoice itself (rendered inside the same `no-print` section as
+the payment form).
 
 ### Local infra
 

@@ -37,7 +37,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { q?
               {readyToBill.map((visit) => (
                 <tr key={visit.id}>
                   <td>
-                    {visit.patient.firstName} {visit.patient.lastName} ({visit.patient.patientCode})
+                    {visit.patient.name} ({visit.patient.patientCode})
                   </td>
                   <td>{visit.department ?? '—'}</td>
                   <td>{visit.visitDate.toLocaleDateString()}</td>
@@ -84,9 +84,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { q?
               {bills.map((bill) => (
                 <tr key={bill.id}>
                   <td>{bill.billNumber}</td>
-                  <td>
-                    {bill.patient.firstName} {bill.patient.lastName}
-                  </td>
+                  <td>{bill.patient.name}</td>
                   <td>₹{(bill.totalCents / 100).toFixed(2)}</td>
                   <td>
                     <StatusBadge status={bill.paymentStatus} />

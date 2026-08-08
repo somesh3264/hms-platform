@@ -7,11 +7,10 @@ import { generatePatientCode } from './patient-code';
 export interface RegisterPatientInput {
   hospitalId: string;
   actorId: string;
-  firstName: string;
-  lastName: string;
-  dateOfBirth: Date;
+  name: string;
+  age: number;
   gender?: Gender;
-  phone?: string;
+  phone: string;
   email?: string;
   address?: string;
   consentDigitalDelivery?: boolean;
@@ -22,16 +21,22 @@ export interface RegisterPatientInput {
 // ID (FR-3.3). Front desk staff are expected to call searchPatients first to
 // avoid creating an unintentional duplicate -- this does not itself enforce
 // uniqueness on name/phone, since those legitimately repeat (e.g. family
-// members sharing a contact number).
+// members sharing a contact number). Age is entered directly as a whole
+// number, not derived from a date of birth (a later, explicitly requested
+// simplification) -- it's a snapshot as of registration, not something that
+// keeps itself current in later years the way a stored DOB would.
 export async function registerPatient(
   tx: Prisma.TransactionClient,
   input: RegisterPatientInput,
 ): Promise<Patient> {
-  if (!input.firstName.trim() || !input.lastName.trim()) {
-    throw new Error('First and last name are required.');
+  if (!input.name.trim()) {
+    throw new Error('Name is required.');
   }
-  if (input.dateOfBirth.getTime() > Date.now()) {
-    throw new Error('Date of birth cannot be in the future.');
+  if (!Number.isInteger(input.age) || input.age < 0 || input.age > 150) {
+    throw new Error('Age must be a whole number between 0 and 150.');
+  }
+  if (!/^\d{10}$/.test(input.phone)) {
+    throw new Error('Phone number must be exactly 10 digits.');
   }
 
   const patientCode = await generatePatientCode(tx, input.hospitalId);
@@ -40,9 +45,8 @@ export async function registerPatient(
     data: {
       hospitalId: input.hospitalId,
       patientCode,
-      firstName: input.firstName.trim(),
-      lastName: input.lastName.trim(),
-      dateOfBirth: input.dateOfBirth,
+      name: input.name.trim(),
+      age: input.age,
       gender: input.gender,
       phone: input.phone,
       email: input.email,

@@ -22,12 +22,7 @@ export default async function PatientsSearchPage({
     <main>
       <h1>Patients</h1>
       <form method="get">
-        <input
-          type="text"
-          name="q"
-          defaultValue={query}
-          placeholder="Name, phone, or patient ID"
-        />
+        <input type="text" name="q" defaultValue={query} placeholder="Name, phone, or patient ID" />
         <button type="submit">Search</button>
       </form>
 
@@ -51,9 +46,7 @@ export default async function PatientsSearchPage({
               {results.map((patient) => (
                 <tr key={patient.id}>
                   <td>{patient.patientCode}</td>
-                  <td>
-                    {patient.firstName} {patient.lastName}
-                  </td>
+                  <td>{patient.name}</td>
                   <td>{patient.phone ?? '—'}</td>
                   <td>
                     <Link href={`/patients/${patient.id}`}>View record</Link>

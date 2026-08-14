@@ -556,9 +556,12 @@ up.
 ### In-house medical store / pharmacy (`src/app/pharmacy`, `src/inventory`)
 
 Implements BRS FR-6.1–FR-6.10. `/pharmacy/[prescriptionId]` (FR-6.2: scan
-shown alongside patient/visit details) lets pharmacy staff search inventory
-(`searchMedicines`, FR-6.3) and dispense repeatedly, one medicine at a time
-(`dispenseItem`) — a prescription is an unstructured scanned image (BRS
+shown alongside patient/visit details) lists the full available-medicine
+catalog (`listMedicines`) by default, so pharmacy staff can dispense
+without typing anything first; the same search field (`searchMedicines`,
+FR-6.3) narrows that list when useful, feeding the same table either way.
+Dispensing itself is repeatable, one medicine at a time (`dispenseItem`) --
+a prescription is an unstructured scanned image (BRS
 Section 2.6), so there's no structured "what was prescribed" list to dispense
 against automatically; staff read the scan and select matching medicines
 manually, same as in practice. `finalizeDispensing` closes out the
@@ -589,15 +592,22 @@ changes.
 one. `/pharmacy/inventory`'s "Add stock" form and `addMedicineStock`
 (`src/inventory/add-stock.ts`) fill that gap, serving both onboarding a
 brand-new medicine and restocking an existing one through the same fields
-(name, optional salt composition/batch number/expiry, unit price, quantity
-to add, and reorder level/threshold that only apply when creating new).
-Since `Medicine` has no DB-level uniqueness on name/batch (see the
+(name, optional batch number, unit price, quantity to add). The form is
+deliberately minimal -- salt composition, expiry date, reorder level, and
+the low-stock threshold override were all cut after the first pass at
+pharmacy staff's request; `addMedicineStock`/`Medicine` still support all
+of them (a new medicine added here just gets `reorderLevel: 0`, i.e. no
+low-stock alerting until it's set some other way), so nothing downstream
+broke, only the form's surface area shrank. Since `Medicine` has no
+DB-level uniqueness on name/batch (see the
 `inventory` bullet in "Module layout" above), `addMedicineStock` does the
 dedupe itself: a case-insensitive name match with the same batch number
 (including two blank batch numbers matching each other, since most stock
 here isn't batch-tracked) increments that row's `stockQuantity` and
-refreshes its unit price/expiry to what was just entered, rather than
-creating a visually-duplicate second row -- no match creates a new row.
+refreshes its unit price to what was just entered (plus expiry/salt
+composition, for any future caller that still supplies them -- the form
+itself no longer does), rather than creating a visually-duplicate second
+row -- no match creates a new row.
 Returns `{ medicine, merged }` so the calling action can flash a different
 message for "restocked" vs. "new medicine added." This pre-check-then-write
 shape (not a single atomic upsert) mirrors `createUser`/`updateUser`'s

@@ -71,16 +71,8 @@ export default async function InventoryPage({
             <input type="text" name="name" required />
           </label>
           <label>
-            Salt composition (optional)
-            <input type="text" name="saltComposition" />
-          </label>
-          <label>
             Batch number (optional)
             <input type="text" name="batchNumber" />
-          </label>
-          <label>
-            Expiry date (optional)
-            <input type="date" name="expiryDate" />
           </label>
           <label>
             Unit price (₹)
@@ -89,14 +81,6 @@ export default async function InventoryPage({
           <label>
             Quantity to add
             <input type="number" name="quantity" min={1} step="1" required />
-          </label>
-          <label>
-            Reorder level (new medicines only)
-            <input type="number" name="reorderLevel" min={0} step="1" />
-          </label>
-          <label>
-            Low-stock threshold % override (optional)
-            <input type="number" name="lowStockThresholdPercent" min={0} max={100} step="1" />
           </label>
           <button type="submit">Add stock</button>
         </form>

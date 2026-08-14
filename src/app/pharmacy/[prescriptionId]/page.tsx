@@ -1,4 +1,4 @@
-import { searchMedicines } from '@/inventory';
+import { listMedicines, searchMedicines } from '@/inventory';
 import { getPrescriptionDetail } from '@/prescriptions';
 import { requireSession, withHospitalContext } from '@/shared';
 
@@ -24,7 +24,7 @@ export default async function DispensePrescriptionPage({
     });
     const medicineResults = medQuery
       ? await searchMedicines(tx, { hospitalId, query: medQuery })
-      : [];
+      : await listMedicines(tx, hospitalId);
     return { prescription, medicineResults };
   });
 
@@ -107,50 +107,50 @@ export default async function DispensePrescriptionPage({
               <button type="submit">Search</button>
             </form>
 
-            {medQuery && (
-              <table>
-                <thead>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>In stock</th>
+                  <th>Unit price</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {medicineResults.length === 0 && (
                   <tr>
-                    <th>Name</th>
-                    <th>In stock</th>
-                    <th>Unit price</th>
-                    <th></th>
+                    <td colSpan={4}>
+                      {medQuery ? 'No matching medicines.' : 'No medicines in inventory.'}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {medicineResults.length === 0 && (
-                    <tr>
-                      <td colSpan={4}>No matching medicines.</td>
-                    </tr>
-                  )}
-                  {medicineResults.map((medicine) => (
-                    <tr key={medicine.id}>
-                      <td>{medicine.name}</td>
-                      <td>{medicine.stockQuantity}</td>
-                      <td>₹{(medicine.unitPriceCents / 100).toFixed(2)}</td>
-                      <td>
-                        <form action={dispenseItemAction}>
-                          <input type="hidden" name="prescriptionId" value={prescription.id} />
-                          <input type="hidden" name="medicineId" value={medicine.id} />
-                          <input type="hidden" name="medQuery" value={medQuery} />
-                          <input
-                            type="number"
-                            name="quantity"
-                            min={1}
-                            max={medicine.stockQuantity}
-                            defaultValue={1}
-                            required
-                          />
-                          <button type="submit" disabled={medicine.stockQuantity === 0}>
-                            Dispense
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                )}
+                {medicineResults.map((medicine) => (
+                  <tr key={medicine.id}>
+                    <td>{medicine.name}</td>
+                    <td>{medicine.stockQuantity}</td>
+                    <td>₹{(medicine.unitPriceCents / 100).toFixed(2)}</td>
+                    <td>
+                      <form action={dispenseItemAction}>
+                        <input type="hidden" name="prescriptionId" value={prescription.id} />
+                        <input type="hidden" name="medicineId" value={medicine.id} />
+                        <input type="hidden" name="medQuery" value={medQuery} />
+                        <input
+                          type="number"
+                          name="quantity"
+                          min={1}
+                          max={medicine.stockQuantity}
+                          defaultValue={1}
+                          required
+                        />
+                        <button type="submit" disabled={medicine.stockQuantity === 0}>
+                          Dispense
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </section>
 
           <section>

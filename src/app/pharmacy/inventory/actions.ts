@@ -25,22 +25,15 @@ export async function addMedicineStockAction(formData: FormData): Promise<void> 
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new Error('Quantity must be a positive number.');
     }
-    const reorderLevelRaw = optionalString(formData, 'reorderLevel');
-    const thresholdRaw = optionalString(formData, 'lowStockThresholdPercent');
-    const expiryDateRaw = optionalString(formData, 'expiryDate');
 
     merged = await withHospitalContext(hospitalId, async (tx) => {
       const result = await addMedicineStock(tx, {
         hospitalId,
         actorId,
         name,
-        saltComposition: optionalString(formData, 'saltComposition'),
         batchNumber: optionalString(formData, 'batchNumber'),
-        expiryDate: expiryDateRaw ? new Date(expiryDateRaw) : undefined,
         unitPriceCents: Math.round(unitPriceRupees * 100),
         quantity,
-        reorderLevel: reorderLevelRaw ? Number(reorderLevelRaw) : undefined,
-        lowStockThresholdPercent: thresholdRaw ? Number(thresholdRaw) : undefined,
       });
       return result.merged;
     });

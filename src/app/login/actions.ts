@@ -15,6 +15,9 @@ export async function loginAction(formData: FormData): Promise<void> {
   }
 
   const hospitalId = await resolveCurrentHospitalId();
+  if (!hospitalId) {
+    redirect('/login?error=1');
+  }
 
   const user = await withHospitalContext(hospitalId, (tx) =>
     authenticateUser(tx, { hospitalId, email, password }),

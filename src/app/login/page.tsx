@@ -2,12 +2,22 @@ import { resolveCurrentHospital } from '@/tenants';
 
 import { loginAction } from './actions';
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: { error?: string };
-}) {
+export default async function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
   const hospital = await resolveCurrentHospital();
+
+  if (!hospital) {
+    return (
+      <main className="auth-page">
+        <div className="auth-card">
+          <h1>Hospital not found</h1>
+          <p>
+            This address doesn&apos;t match a registered hospital. Double-check the link your
+            hospital gave you, or contact them directly.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="auth-page">
@@ -19,9 +29,7 @@ export default async function LoginPage({
         <h1>{hospital.name}</h1>
         <p>Sign in to continue.</p>
 
-        {searchParams.error && (
-          <p className="alert alert-error">Invalid email or password.</p>
-        )}
+        {searchParams.error && <p className="alert alert-error">Invalid email or password.</p>}
 
         <form action={loginAction} className="stacked-form">
           <label>

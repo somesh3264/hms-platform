@@ -21,6 +21,7 @@ async function main() {
   const hospital = await prisma.hospital.create({
     data: {
       name: 'Demo Hospital',
+      subdomain: 'demo',
       status: 'ACTIVE',
       address: '12 MG Road, Demo City, IN 560001',
       gstin: '29ABCDE1234F1Z5',
@@ -105,7 +106,7 @@ async function main() {
 
   console.log(`Seeded Demo Hospital (${hospital.id}).`);
   console.log(
-    `Log in at /login, hospital "Demo Hospital", password "${DEMO_PASSWORD}" for all of:`,
+    `Log in at http://${hospital.subdomain}.localhost:3000/login, password "${DEMO_PASSWORD}" for all of:`,
   );
   for (const user of demoUsers) {
     console.log(`  ${user.role.padEnd(14)} ${user.email}`);

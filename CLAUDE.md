@@ -28,14 +28,14 @@ pharmacy (BRS FR-6.1–FR-6.10), and digital billing (BRS FR-7.1–FR-7.7) —
 plus real authentication (BRS FR-2.4, see "Authentication" below), the
 patient longitudinal view (BRS FR-8.1–FR-8.3), a minimal hospital branding
 admin screen (BRS FR-1.2/FR-1.3), and Hospital Admin user management (BRS
-FR-2.2) are implemented. Explicitly not yet built: subdomain-based hospital
-login resolution (BRS FR-1.7, added in BRS v0.4/TRD v0.3 -- login still uses
-the single-tenant `resolveCurrentHospitalId` shortcut described in
-"Authentication" below); Super Admin hospital onboarding/subscription
-management (FR-1.1/FR-1.6) -- of questionable relevance now that the
-product is deployed one hospital at a time rather than as a shared
-multi-hospital instance, see "Authentication" below -- reporting/dashboards
-(FR-9), and notifications/digital delivery (FR-10).
+FR-2.2) are implemented. The product direction has since shifted from
+"deployed one hospital at a time" to a genuine shared platform (a later,
+explicitly requested decision -- see "Shared-platform tenant resolution"
+below): subdomain-based hospital login resolution (BRS FR-1.7) and a
+minimal hospital-onboarding write path (FR-1.1/FR-1.6, deliberately not a
+full Super Admin login -- see that section) are now both implemented too.
+Still not built: reporting/dashboards (FR-9), and notifications/digital
+delivery (FR-10).
 All migrations have been applied via `prisma migrate
 deploy`/`prisma migrate dev` against a real local Postgres and verified end
 to end (not just typechecked) — including that `hms_app` (no context set)
@@ -135,7 +135,7 @@ Code is organized by domain, one top-level folder per module. `patients`,
 `visits`, `prescriptions`, `inventory`, and `billing` hold the fuller set of
 data-access functions (see the module sections below):
 
-- `tenants` — `updateHospitalBranding`, `resolveCurrentHospitalId` (hospital branding/config, maps to the `Hospital` model); Super Admin onboarding/subscription management (FR-1.1/FR-1.6) is not built and of questionable relevance under the current single-hospital-per-deployment model
+- `tenants` — `updateHospitalBranding`, `resolveCurrentHospital`/`resolveCurrentHospitalId` (subdomain-based tenant resolution, FR-1.7), `onboardHospital` (minimal hospital onboarding, FR-1.1/FR-1.6) (hospital branding/config + onboarding, maps to the `Hospital` model)
 - `users` — `authenticateUser` (FR-2.4 login), `listUsers`/`createUser`/`updateUser`/`resetUserPassword` (FR-2.2); roles (`UserRole`: SUPER_ADMIN, HOSPITAL_ADMIN, FRONT_DESK, DOCTOR, PHARMACIST -- no separate BILLING_STAFF, see "Pharmacist billing" below)
 - `patients` — `searchPatients`, `registerPatient`, `updatePatientDemographics`, `generatePatientCode`, `getPatientHistory` (`Patient`)
 - `visits` — `createVisit`, `listWaitingQueue`, `listVisitsForDoctor`, `getVisitDetail`, `startConsultation`, `saveConsultationNotes`, `completeConsultation` (`Visit`)
@@ -255,22 +255,15 @@ stateless JWT would make. Session TTL is 12 hours (TRD 5.1's "session
 expiry" NFR); login rate limiting/lockout, also called out in TRD 5.1, is
 not implemented.
 
-`/login` is just email/password, no hospital picker: the product is deployed
-per hospital (personalization is swapping that hospital's logo/branding, not
-one shared login across many hospitals), and there's only one client today,
-so `resolveCurrentHospitalId` (`src/tenants/resolve-hospital.ts`) resolves
-the tenant automatically -- a direct `prisma.hospital.findFirst` (not through
-`withHospitalContext`, since `hospitals` carries no RLS policy; see
-"Row-Level Security" above), oldest `ACTIVE` hospital first. **This silently
-picks an arbitrary hospital once a second one is onboarded** -- it's
-explicitly flagged in that file as needing a real tenant-resolution
-mechanism (e.g. per-hospital subdomain) before that happens; don't build
-more on top of the current shortcut without revisiting it first. The login
-page itself shows that same resolved hospital's name/logo (`resolveCurrentHospital`,
-the full-row sibling of `resolveCurrentHospitalId`) instead of a generic
-product name, so staff see which hospital they're signing into -- consistent
-with the rest of the app never showing "HMS Platform" once branding is
-available.
+`/login` is still just email/password, no hospital picker -- but which
+hospital it's for is now resolved by subdomain (BRS FR-1.7, see
+"Shared-platform tenant resolution" below), not a single hardcoded tenant.
+The login page shows the resolved hospital's name/logo
+(`resolveCurrentHospital`, `src/tenants/resolve-hospital.ts`) instead of a
+generic product name, so staff see which hospital they're signing into --
+consistent with the rest of the app never showing "HMS Platform" once
+branding is available. A subdomain that doesn't match any hospital renders
+a "Hospital not found" message instead of the login form.
 `authenticateUser` (`src/users/authenticate.ts`) looks up the `User` row
 scoped by `[hospitalId, email]` inside `withHospitalContext` (the `users`
 table _is_ RLS-protected), compares the password with `bcryptjs`, and records a
@@ -295,11 +288,73 @@ called the stub it replaced, just with an explicit allowed-roles list.
 nav header (hospital branding, current user, role-appropriate links, log
 out).
 
-**Not yet built**: Super Admin tenant onboarding (FR-1.1/FR-1.6) -- moot
-under the current single-hospital-per-deployment model (see
-`resolveCurrentHospitalId` above) unless that model changes; fine-grained
-per-screen permissions beyond the role-gated routes above (FR-2.3 is
-satisfied at the route level only).
+**Not yet built**: a full platform-level Super Admin login identity (see
+"Shared-platform tenant resolution" below for why hospital onboarding
+doesn't wait on this); fine-grained per-screen permissions beyond the
+role-gated routes above (FR-2.3 is satisfied at the route level only).
+
+### Shared-platform tenant resolution (`src/tenants/resolve-hospital.ts`, `src/tenants/onboard-hospital.ts`, `src/app/onboarding`)
+
+Implements BRS FR-1.7 and the write-path half of FR-1.1/FR-1.6. A later,
+explicitly requested pivot: the product direction changed from "one
+deployment per hospital" to a genuine shared platform (one deployment, one
+domain, every hospital gets a free subdomain) once the marginal cost of the
+old per-hospital-deployment model -- a whole new VPS and domain for every
+client -- was weighed against this model's near-zero one (a DNS entry and a
+database row on infrastructure already being paid for). This replaced the
+"oldest `ACTIVE` hospital" shortcut `resolveCurrentHospitalId` used to fall
+back on, which is exactly the kind of silent wrong-tenant bug that shortcut
+was always flagged as risking once a second hospital existed.
+
+`resolveCurrentHospital`/`resolveCurrentHospitalId` now read the request's
+`Host` header (via `next/headers`) and match everything before
+`ROOT_DOMAIN` (an env var, e.g. `hms-platform.in` in production) against
+`Hospital.subdomain`. Both now return `null` instead of throwing on an
+unresolvable address, since a mistyped or stale subdomain is an expected,
+user-facing case (not a client error to route through Next's default error
+page) -- `/login` renders its own "Hospital not found" message for this,
+same treatment as `authenticateUser`'s own null-on-failure convention (see
+above). **`ROOT_DOMAIN` defaults to `localhost`** so
+`<subdomain>.localhost:3000` resolves a real hospital in local dev with no
+`/etc/hosts` editing (most browsers already treat any `*.localhost` host as
+`127.0.0.1`); hitting the bare root host in dev (plain `localhost:3000`, no
+subdomain) falls back to the oldest active hospital purely so `npm run dev`
+keeps working without typing a subdomain every time -- **this fallback is
+explicitly dev-only** (`NODE_ENV !== 'production'`) and must never fire in
+production, where an unmatched host is a real "which hospital?" failure to
+surface, not guess at. Verified directly in a real browser session across
+all three paths: a real hospital's own subdomain resolves it correctly, an
+unregistered subdomain shows "Hospital not found," and the bare dev host
+still falls back to the single seeded hospital.
+
+`Hospital.subdomain` (migration `*_add_hospital_subdomain`, hand-written
+like the RLS/enum migrations since the existing row needed backfilling
+before the column could go `NOT NULL` + unique) is lowercase,
+platform-globally unique (there's no narrower scope than "the deployment"
+for it), and backfilled for pre-existing rows from a slugified hospital
+name.
+
+**Onboarding a new hospital (`onboardHospital`, FR-1.1/FR-1.6's missing
+write path)** creates the `Hospital` row directly (no RLS on `hospitals`)
+and then its first `HOSPITAL_ADMIN` `User` inside `withHospitalContext` for
+that brand-new hospital ID, in one call -- so adding a client is one step,
+not hand-written SQL, same motivation as `addMedicineStock` filling in
+FR-6.4's missing write path. Its `AuditLog` entry uses the newly created
+admin as its own actor (self-referential -- the first thing that exists in
+a hospital is necessarily its own audit actor, the same shape a
+"created by the deploy process" bootstrap record would take). **Deliberately
+not a `SUPER_ADMIN`-gated screen**: every tenant-owned table's RLS policy
+(and `User.hospitalId` itself) assumes a user belongs to exactly one
+hospital, so a genuinely platform-level login identity would need its own
+schema/RLS carve-out -- real scope, not what "minimal onboarding" asked
+for. `/onboarding` (`src/app/onboarding`) is instead gated by a shared
+secret (`PLATFORM_ADMIN_SECRET`, compared with `timingSafeEqual` like the
+session cookie's own signature check) entered directly in the form, the
+same env-var-provisioned-credential shape as the go-live plan's Phase 01
+bootstrap admin. Not linked from any nav -- reachable only by typing the
+URL. **Known limitation, same category as the already-flagged missing
+login rate-limiting**: nothing throttles repeated guesses at the secret
+either; revisit alongside that gap.
 
 ### Hospital Admin user management (`src/app/admin/users`, `src/users`)
 
@@ -546,12 +601,25 @@ each — see "In-house medical store / pharmacy" below.
 **File storage is a local-disk stand-in for the TRD's real object storage**
 (S3-compatible, e.g. Cloudflare R2 — TRD Section 3). `src/shared/storage.ts`
 writes under `.data/uploads/` (gitignored) and returns a `/api/uploads/...`
-URL; `src/app/api/uploads/[...key]/route.ts` serves it back. **That route has
-no access control** — anyone who knows/guesses a storage key can read the
-file, regardless of login state. That's acceptable only because it's local
-dev; real object storage must use short-lived signed URLs or bucket-scoped
-policies, and this route should be deleted (not hardened) once that's wired
-up.
+URL; `src/app/api/uploads/[...key]/route.ts` serves it back. **That route
+has an interim access-control gate, not a real fix**: every storage key's
+first path segment is the owning `hospitalId` (see `saveFile`/
+`saveHospitalLogo`/`saveHospitalUpiQrCode`), so prescription scans (keyed
+by `{hospitalId}/{visitId}/...`) now require a logged-in session
+(`getSession`, 401 if absent) whose `hospitalId` matches that segment (404
+otherwise — a wrong-hospital session gets the same response as a genuinely
+missing file, so it can't distinguish "doesn't exist" from "not yours").
+**Logo and UPI QR code keys (`{hospitalId}/logo/...`,
+`{hospitalId}/upi-qr/...`) are deliberately exempted from this gate** and
+stay publicly readable, since `logoUrl` renders on `/login` itself, before
+any session exists — and neither is patient data. This closes the "anyone
+on the internet" hole for the data that actually matters (pre-launch
+go-live-plan Phase 01, item one) but is still weaker than the real fix: a
+valid session can fetch any prescription at its own hospital indefinitely,
+with no expiry, and local disk has no storage redundancy of its own -- pair
+with a persistent volume in production. Real object storage must use
+short-lived signed URLs or bucket-scoped policies, and this route should be
+deleted (not hardened further) once that's wired up.
 
 ### In-house medical store / pharmacy (`src/app/pharmacy`, `src/inventory`)
 
@@ -723,9 +791,11 @@ though `hospitals` itself has no RLS policy -- only the audit log write
 needs the tenant-scoped transaction, and running the Hospital update on the
 same `tx` is no different from running it on the plain client. `themeColor`
 becomes editable here but nothing in the UI consumes it yet (FR-1.4, a
-"Should have," is out of scope for now). Super Admin hospital onboarding/
-subscription management (FR-1.1/FR-1.6) is not built -- only the one hospital
-`prisma/seed.mjs` creates exists.
+"Should have," is out of scope for now). `subdomain` is deliberately not
+editable from this screen -- it's routing-critical and rarely changed, set
+once at onboarding (see "Shared-platform tenant resolution" above); this
+page shows it read-only instead. Subscription management (the other half
+of FR-1.6) is still not built.
 
 **The form has full-overwrite semantics, not a partial patch**: every
 optional field (`address`, `contactPhone`, `contactEmail`, `gstin`,

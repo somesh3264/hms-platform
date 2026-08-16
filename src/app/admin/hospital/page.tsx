@@ -22,6 +22,14 @@ export default async function HospitalSettingsPage({
 
       <FlashMessage success={searchParams.success} error={searchParams.error} />
 
+      <p>
+        Staff sign in at{' '}
+        <code>
+          {hospital.subdomain}.{process.env.ROOT_DOMAIN ?? 'localhost'}
+        </code>{' '}
+        -- contact the platform operator to change this.
+      </p>
+
       <section className="form-narrow">
         <form action={updateHospitalBrandingAction}>
           <label>

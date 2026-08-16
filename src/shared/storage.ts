@@ -7,10 +7,14 @@ import path from 'node:path';
 // Same shape (save bytes, get back a URL) so swapping in a real client later
 // is a drop-in replacement of this one module, not a rewrite of callers.
 //
-// Files are served back by src/app/api/uploads/[...key]/route.ts, which has
-// NO access control (see that file) -- acceptable for local dev only. Real
-// object storage in production must use short-lived signed URLs or bucket
-// policies scoped per hospital, not a public route like this.
+// Files are served back by src/app/api/uploads/[...key]/route.ts, which
+// (as an interim fix -- see that file) gates prescription scans on a
+// logged-in session whose hospitalId matches the key's (logo/UPI-QR
+// branding assets stay public, since logoUrl renders on /login itself,
+// before any session exists) -- still no expiry and no storage redundancy
+// of its own. Real object storage in production must use short-lived
+// signed URLs or bucket policies scoped per hospital, not a route on this
+// app at all.
 
 const UPLOAD_ROOT = path.join(process.cwd(), '.data', 'uploads');
 

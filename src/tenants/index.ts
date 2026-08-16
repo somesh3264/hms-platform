@@ -2,3 +2,5 @@
 export { updateHospitalBranding } from './update-branding';
 export type { UpdateHospitalBrandingInput } from './update-branding';
 export { resolveCurrentHospital, resolveCurrentHospitalId } from './resolve-hospital';
+export { onboardHospital } from './onboard-hospital';
+export type { OnboardHospitalInput, OnboardHospitalResult } from './onboard-hospital';

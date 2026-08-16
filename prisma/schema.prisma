@@ -17,6 +17,14 @@ datasource db {
 model Hospital {
   id           String         @id @default(cuid())
   name         String
+  // Tenant-resolution key for the shared-platform deployment model (BRS
+  // FR-1.7): requests are routed by the subdomain of the Host header
+  // (e.g. "apollo" for apollo.yourdomain.com) rather than a hardcoded
+  // "oldest active hospital" shortcut -- see src/tenants/resolve-hospital.ts.
+  // Lowercase, URL-safe, unique across the whole platform (not just per
+  // hospital, since there is no enclosing scope narrower than "the
+  // deployment" for this field).
+  subdomain    String         @unique
   logoUrl      String?        @map("logo_url")
   // Hospital Admin-uploaded UPI QR code (FR-7.5-adjacent, a later,
   // explicitly requested addition), shown wherever staff can select UPI as

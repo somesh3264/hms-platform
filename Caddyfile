@@ -1,0 +1,34 @@
+# Reverse proxy + automatic HTTPS for the shared-platform model (one
+# domain, every hospital on a subdomain of it -- see "Shared-platform
+# tenant resolution" in CLAUDE.md).
+#
+# A true wildcard TLS certificate (*.ROOT_DOMAIN) needs a DNS-01 challenge,
+# which needs a Caddy build with a DNS-provider plugin baked in for
+# whichever registrar/DNS host you end up using. On-demand TLS sidesteps
+# that entirely: Caddy issues a normal per-hostname certificate via HTTP-01
+# the first time each subdomain is actually visited, using the stock Caddy
+# image, no provider-specific plugin or API token required. New hospital
+# onboarded -> point its subdomain's DNS at this server -> first visit
+# gets a real cert automatically, no manual step here.
+#
+# The `ask` endpoint (src/app/api/internal/tls-ask) is required, not
+# optional, alongside on-demand TLS: without it, the wildcard DNS record
+# pointing every possible subdomain at this server means anyone could type
+# a random subdomain and make this box request a real Let's Encrypt
+# certificate for it -- wasteful, and a way to burn through Let's Encrypt's
+# rate limit. The ask endpoint only approves hostnames that are either the
+# bare root domain or a real, active hospital's subdomain.
+
+{
+	on_demand_tls {
+		ask http://app:3000/api/internal/tls-ask
+	}
+}
+
+{$ROOT_DOMAIN}, *.{$ROOT_DOMAIN} {
+	tls {
+		on_demand
+	}
+
+	reverse_proxy app:3000
+}

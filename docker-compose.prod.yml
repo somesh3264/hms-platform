@@ -1,0 +1,75 @@
+# Production stack (go-live plan, Phase 02): Postgres + the app + Caddy,
+# all on this one VPS. Separate from docker-compose.yml on purpose -- that
+# file is local-dev-only (Postgres alone, published on localhost:5432 for
+# `npm run dev` to reach directly; see CLAUDE.md's "Local infra"). Neither
+# Postgres nor the app publish a port to the host here -- Caddy is the only
+# thing reachable from outside this VPS, everything else talks over this
+# compose file's private network.
+#
+# Run with:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# .env.production is never committed (see .env.production.example for every
+# variable this file and the app itself need).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - hms_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hms-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      APP_DATABASE_URL: ${APP_DATABASE_URL}
+      SESSION_SECRET: ${SESSION_SECRET}
+      PLATFORM_ADMIN_SECRET: ${PLATFORM_ADMIN_SECRET}
+      ROOT_DOMAIN: ${ROOT_DOMAIN}
+      NODE_ENV: production
+    volumes:
+      # Prescription scans / logos / UPI QR codes (src/shared/storage.ts)
+      # -- must be a named volume, or every rebuild wipes every uploaded
+      # file. Path must match the Dockerfile's mkdir + storage.ts's
+      # process.cwd()-relative UPLOAD_ROOT exactly.
+      - hms_uploads:/app/.data/uploads
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: hms-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      ROOT_DOMAIN: ${ROOT_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - hms_caddy_data:/data
+      - hms_caddy_config:/config
+
+volumes:
+  hms_postgres_data:
+  hms_uploads:
+  hms_caddy_data:
+  hms_caddy_config:

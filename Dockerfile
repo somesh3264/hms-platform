@@ -1,0 +1,59 @@
+# Production image for the Next.js app (go-live plan, Phase 02). Postgres and
+# the Caddy reverse proxy are separate containers -- see docker-compose.prod.yml.
+#
+# Three stages: install real dependencies once, build once, then assemble a
+# runtime image that only carries what `node server.js` actually needs
+# (Next's `output: 'standalone'` in next.config.js is what makes that last
+# part possible -- see the comment there).
+
+FROM node:20-alpine AS base
+
+# ---------- deps ----------
+FROM base AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# ---------- builder ----------
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# Generates the Prisma Client (and its query-engine binary) against *this*
+# Alpine/musl environment -- must happen in a stage that matches the
+# runner's OS, or the engine binary silently won't run there.
+RUN npx prisma generate
+RUN npm run build
+
+# ---------- runner ----------
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+# Prisma's query engine needs a real OpenSSL present at runtime, which
+# Alpine's minimal base doesn't include by default.
+RUN apk add --no-cache openssl
+
+RUN addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# The standalone output only traces production JS dependencies -- Prisma's
+# generated client (a build artifact, not something `next build` traces the
+# same way) has to be copied in explicitly, alongside the schema/migrations
+# `prisma migrate deploy` needs when run against this same image.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+
+# Prescription scans / logos / UPI QR codes (src/shared/storage.ts) land
+# here -- mount a volume at this exact path (docker-compose.prod.yml does),
+# or every redeploy silently wipes every uploaded file.
+RUN mkdir -p /app/.data/uploads && chown -R nextjs:nodejs /app/.data
+
+USER nextjs
+EXPOSE 3000
+CMD ["node", "server.js"]

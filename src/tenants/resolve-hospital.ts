@@ -11,7 +11,12 @@ import { prisma } from '@/shared';
 // treat any *.localhost host as 127.0.0.1.
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'localhost';
 
-function extractSubdomain(hostHeader: string | null): string | null {
+// Exported so src/app/api/internal/tls-ask (Caddy's on-demand-TLS gate)
+// reuses this exact rule rather than a second, potentially-diverging copy
+// of it -- that endpoint deciding "issue a real certificate for this
+// hostname" must never disagree with login deciding "this hostname is a
+// real hospital."
+export function extractSubdomain(hostHeader: string | null): string | null {
   if (!hostHeader) {
     return null;
   }

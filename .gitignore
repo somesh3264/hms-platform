@@ -13,8 +13,10 @@
 
 # env files
 .env
+.env.production
 .env*.local
 !.env.example
+!.env.production.example
 
 # misc
 .DS_Store

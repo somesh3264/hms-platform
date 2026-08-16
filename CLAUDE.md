@@ -105,7 +105,7 @@ in a fresh environment rather than assuming this setup persists.
 ## Commands
 
 ```bash
-npm install              # install dependencies (package-lock.json not yet committed)
+npm install              # install dependencies
 cp .env.example .env     # sets DATABASE_URL (admin) and APP_DATABASE_URL (RLS-restricted)
 docker compose up -d     # start local Postgres (postgres:16-alpine, db "hms")
 
@@ -861,3 +861,72 @@ the payment form).
 `docker-compose.yml` runs a single `postgres:16-alpine` service (user/pass/db =
 `hms`/`hms`/`hms`, port 5432, named volume `hms_postgres_data`). `.env.example`
 has the matching `DATABASE_URL`.
+
+### Production deployment (`Dockerfile`, `docker-compose.prod.yml`, `Caddyfile`)
+
+Go-live plan Phase 02: a self-managed VPS running everything in Docker --
+Postgres, the app, and Caddy as three containers on one `docker compose
+-f docker-compose.prod.yml` stack, deliberately separate from the
+local-dev-only `docker-compose.yml` above. Neither Postgres nor the app
+publish a port to the host; Caddy is the only container reachable from
+outside the VPS, everything else talks over the compose network. Run with
+`docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+--build`; every variable both files need is documented in
+`.env.production.example` (never commit the real `.env.production` --
+`.gitignore` excludes it the same way it excludes `.env`).
+
+`next.config.js`'s `output: 'standalone'` is what makes the `Dockerfile`'s
+runtime image small -- `next build` emits a self-contained
+`.next/standalone` (server + only the `node_modules` it actually traces as
+used) instead of assuming a full `npm install` sits next to it. Verified
+directly: a real `npm run build` locally produces `.next/standalone/server.js`
+plus Prisma's generated client *and* its platform-specific query-engine
+binary already traced in automatically -- the `Dockerfile` still copies
+`node_modules/.prisma`/`@prisma`/`prisma` explicitly anyway, as a defensive
+belt-and-braces measure given Next+Prisma tracing gaps have bitten other
+projects before, not because it's strictly required here. The three-stage
+build (deps -> builder -> runner) runs `prisma generate` inside the builder
+stage specifically so the query-engine binary it produces matches the
+runner's own Alpine/musl environment -- generating it anywhere else would
+silently produce a binary that doesn't run in the final image.
+
+**Uploads need a real volume, not just a reminder**: `src/shared/storage.ts`
+writes to `<cwd>/.data/uploads`, which inside this image is
+`/app/.data/uploads` -- `docker-compose.prod.yml` mounts a named volume
+there. Skipping that means every rebuild/redeploy silently wipes every
+prescription scan, logo, and UPI QR code ever uploaded.
+
+**The RLS migration's `hms_app` password is a dev-only placeholder baked
+into a committed SQL file** (`prisma/migrations/*_add_row_level_security`,
+`PASSWORD 'hms_app_dev_only'`) -- that migration's own comment already
+flags this as needing rotation in any shared/production environment.
+`.env.production.example` spells out the exact fix: after running
+`prisma migrate deploy` against production, connect as the admin role and
+run `ALTER ROLE hms_app WITH PASSWORD '...'` with a freshly generated
+password, then put that same password in `APP_DATABASE_URL`. Skipping this
+step means the production app-database connection is protected by a
+password sitting in git history.
+
+**`Caddyfile` uses on-demand TLS, not a static wildcard certificate.** A
+true wildcard cert (`*.ROOT_DOMAIN`) needs a DNS-01 ACME challenge, which
+needs a Caddy build with a DNS-provider plugin baked in for whichever
+registrar ends up hosting DNS -- a real dependency on a choice not made
+yet. On-demand TLS sidesteps that: Caddy issues a normal per-hostname
+certificate via HTTP-01 the first time each subdomain is actually visited,
+using the stock `caddy:2-alpine` image, no provider-specific plugin or API
+token required. Onboarding a new hospital (`/onboarding`) then needs
+nothing further on the infra side beyond pointing that subdomain's DNS at
+this server -- its first real visit gets a certificate automatically.
+
+On-demand TLS is gated by `src/app/api/internal/tls-ask` (Caddy's `ask`
+directive) -- without it, the wildcard DNS record that makes every
+subdomain resolve to this server would let anyone type a random subdomain
+and make the box request a real Let's Encrypt certificate for it, wasting
+requests against Let's Encrypt's per-domain rate limit. That endpoint
+approves the bare root domain (still a legitimate page even for an unknown
+subdomain -- see `/login`'s own "Hospital not found" handling, which needs
+real HTTPS too) and any subdomain matching a real, active hospital, reusing
+`extractSubdomain` (now exported from `src/tenants/resolve-hospital.ts`)
+so this can never approve a hostname `/login` would then reject, or vice
+versa. Verified directly against the dev server: an unknown subdomain gets
+403, the bare root domain and a real hospital's subdomain both get 200.

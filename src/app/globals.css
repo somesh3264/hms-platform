@@ -175,11 +175,32 @@ form[method='get'] label {
   margin-bottom: 0;
 }
 
+/* The bare <input> in these search bars has no defined width, so it falls
+   back to the browser's default intrinsic text-input size (~20 characters)
+   and clips its own placeholder -- most noticeable on narrower tablet
+   viewports where there's unused row width right next to it. Let it grow
+   to fill the row instead, same as a labeled field would. */
+form[method='get'] input {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Tables */
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+}
+
+/* Wide tables (waiting queue, admin lists, dispense/inventory tables) get
+   their own horizontal scroll instead of forcing the whole page to scroll
+   sideways -- matters most on tablet-width viewports, where several of
+   these tables have more columns (plus inline forms in cells) than
+   comfortably fit. Every table in this app is a direct child of a
+   main > section card, so this one rule covers all of them with no
+   per-page markup changes, same as the card styling above. */
+main > section:has(table) {
+  overflow-x: auto;
 }
 
 th,

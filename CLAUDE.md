@@ -121,6 +121,7 @@ npm run prisma:generate          # regenerate Prisma client after schema changes
 npm run prisma:migrate            # create/apply a local migration
 npm run prisma:studio              # open Prisma Studio
 npm run prisma:seed                # seed a demo hospital (with address/GSTIN) + hospital-admin/front-desk/doctor/pharmacist users (all password "password123") + demo medicines
+npm run prisma:bootstrap            # production go-live only: create hospital #1 + its Hospital Admin from BOOTSTRAP_* env vars, no-ops if any hospital already exists
 ```
 
 No test runner is configured yet — there are no test files or test script in
@@ -355,6 +356,31 @@ bootstrap admin. Not linked from any nav -- reachable only by typing the
 URL. **Known limitation, same category as the already-flagged missing
 login rate-limiting**: nothing throttles repeated guesses at the secret
 either; revisit alongside that gap.
+
+**Hospital #1's bootstrap (`prisma/bootstrap.mjs`, `npm run
+prisma:bootstrap`, go-live plan Decision 3)** is a separate, narrower
+mechanism from `/onboarding` above -- fully automated (no form, no
+operator typing anything into a browser) so the very first deploy doesn't
+need a manual step at all, in exchange for only ever creating hospital #1.
+Reads `BOOTSTRAP_HOSPITAL_NAME`/`BOOTSTRAP_HOSPITAL_SUBDOMAIN`/
+`BOOTSTRAP_ADMIN_NAME`/`BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD`
+(same env-var-provisioned-credential shape as `SESSION_SECRET` --
+never a value anyone could find by reading the repo) and no-ops
+the moment any `Hospital` row already exists, so it's safe to run
+unconditionally on every deploy rather than needing a "have I already done
+this?" manual check. A standalone script in the same style as
+`prisma/seed.mjs` (plain `PrismaClient`, no import from `src/`) rather than
+a call into `onboardHospital`: it runs as the elevated `DATABASE_URL` role
+(same as migrations), which bypasses RLS entirely -- the right privilege
+level for a script that, by definition, only ever runs before any tenant
+context could exist, whereas `onboardHospital` deliberately runs through
+the RLS-restricted `APP_DATABASE_URL` role via `withHospitalContext`.
+Verified directly against a throwaway second database on the same local
+Postgres cluster (migrated, bootstrapped, rows confirmed correct, re-run
+confirmed idempotent, invalid-subdomain/short-password/missing-env-var
+paths all confirmed to fail without any partial write), then dropped --
+chosen over testing against the real dev database specifically to avoid
+touching real seeded/test data.
 
 ### Hospital Admin user management (`src/app/admin/users`, `src/users`)
 

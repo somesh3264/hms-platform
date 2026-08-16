@@ -16,7 +16,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "node --env-file=.env prisma/seed.mjs"
+    "prisma:seed": "node --env-file=.env prisma/seed.mjs",
+    "prisma:bootstrap": "node --env-file=.env prisma/bootstrap.mjs"
   },
   "prisma": {
     "seed": "node --env-file=.env prisma/seed.mjs"

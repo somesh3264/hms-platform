@@ -47,6 +47,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+# The `prisma` package above is the CLI's code, but `npx prisma` resolves
+# the actual executable via node_modules/.bin/prisma (a shim npm creates at
+# install time) -- without it, `npx prisma migrate deploy` (Phase 03) fails
+# with "prisma: not found" even though the package itself is right there.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.bin ./node_modules/.bin
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Prescription scans / logos / UPI QR codes (src/shared/storage.ts) land

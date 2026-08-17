@@ -52,6 +52,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_module
 # install time) -- without it, `npx prisma migrate deploy` (Phase 03) fails
 # with "prisma: not found" even though the package itself is right there.
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.bin ./node_modules/.bin
+# bcryptjs is used both inside the Next.js app (where Next's build inlines
+# it straight into the compiled server bundle, so it never appears as a
+# standalone node_modules folder) and by prisma/bootstrap.mjs and
+# prisma/seed.mjs, which run outside that bundler and need it resolvable
+# the normal way -- same reasoning as the .bin copy above.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Prescription scans / logos / UPI QR codes (src/shared/storage.ts) land

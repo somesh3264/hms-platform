@@ -2,6 +2,11 @@ import type { Bill, PaymentMethod, Prisma } from '@prisma/client';
 
 import { collectFrontDeskCharges } from './front-desk-charges';
 
+// Exported so src/reporting's revenue bifurcation (consultation fee vs
+// other charges) can match on this exact string instead of a second,
+// potentially-drifting copy of it.
+export const CONSULTATION_FEE_DESCRIPTION = 'Consultation fee';
+
 export interface CollectConsultationFeeInput {
   hospitalId: string;
   actorId: string;
@@ -28,7 +33,7 @@ export async function collectConsultationFee(
     hospitalId: input.hospitalId,
     actorId: input.actorId,
     visitId: input.visitId,
-    charges: [{ description: 'Consultation fee', amountCents: input.feeCents }],
+    charges: [{ description: CONSULTATION_FEE_DESCRIPTION, amountCents: input.feeCents }],
     discountCents: input.discountCents,
     paymentMethod: input.paymentMethod,
     paymentReference: input.paymentReference,

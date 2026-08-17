@@ -36,3 +36,16 @@ export function getISTDayBoundsUTC(date: Date = new Date()): { start: Date; end:
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
   return { start, end };
 }
+
+// Same idea as getISTDayBoundsUTC, but for the given instant's IST calendar
+// month (e.g. the doctor reporting screen's "This month" figures).
+export function getISTMonthBoundsUTC(date: Date = new Date()): { start: Date; end: Date } {
+  const parts = getISTDateString(date).split('-').map(Number);
+  const year = parts[0] ?? 1970;
+  const month = parts[1] ?? 1;
+  const start = new Date(`${year}-${String(month).padStart(2, '0')}-01T00:00:00.000+05:30`);
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00.000+05:30`);
+  return { start, end };
+}

@@ -3,7 +3,7 @@ export { createBill } from './create';
 export type { CreateBillInput, ServiceChargeInput } from './create';
 export { recordPayment } from './payment';
 export type { RecordPaymentInput } from './payment';
-export { collectConsultationFee } from './consultation-fee';
+export { collectConsultationFee, CONSULTATION_FEE_DESCRIPTION } from './consultation-fee';
 export type { CollectConsultationFeeInput } from './consultation-fee';
 export { collectFrontDeskCharges } from './front-desk-charges';
 export type { CollectFrontDeskChargesInput, FrontDeskChargeInput } from './front-desk-charges';

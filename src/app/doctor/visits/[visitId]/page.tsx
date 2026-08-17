@@ -29,11 +29,18 @@ export default async function VisitDetailPage({
   });
 
   const hasUploadedPrescription = visit.prescriptions.some((p) => p.status === 'UPLOADED');
+  // getPatientHistory returns every visit for the patient, including this
+  // one -- fine for the patient longitudinal view (no "current visit" of
+  // its own to exclude), but "Visit history" here should only ever show
+  // *other* visits, not duplicate the one already detailed in "This visit"
+  // above.
+  const pastVisits = history.visits.filter((pastVisit) => pastVisit.id !== visit.id);
 
   return (
     <main>
       <h1>
-        {visit.patient.name} ({visit.patient.patientCode})
+        {visit.patient.name} ({visit.patient.patientCode}){' '}
+        {visit.patient._count.visits > 1 && <StatusBadge status="RETURNING" />}
       </h1>
 
       <FlashMessage success={searchParams.success} error={searchParams.error} />
@@ -61,8 +68,6 @@ export default async function VisitDetailPage({
           </dd>
           <dt>Doctor</dt>
           <dd>{visit.doctor.name}</dd>
-          <dt>Department</dt>
-          <dd>{visit.department ?? '—'}</dd>
           <dt>Since</dt>
           <dd>{visit.visitDate.toLocaleString()}</dd>
         </dl>
@@ -170,28 +175,32 @@ export default async function VisitDetailPage({
 
       <section>
         <h2>Visit history</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Doctor</th>
-              <th>Status</th>
-              <th>Prescriptions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {history.visits.map((pastVisit) => (
-              <tr key={pastVisit.id}>
-                <td>{pastVisit.visitDate.toLocaleDateString()}</td>
-                <td>{pastVisit.doctor.name}</td>
-                <td>
-                  <StatusBadge status={pastVisit.status} />
-                </td>
-                <td>{pastVisit.prescriptions.length}</td>
+        {pastVisits.length === 0 ? (
+          <p>No earlier visits for this patient.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Doctor</th>
+                <th>Status</th>
+                <th>Prescriptions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {pastVisits.map((pastVisit) => (
+                <tr key={pastVisit.id}>
+                  <td>{pastVisit.visitDate.toLocaleDateString()}</td>
+                  <td>{pastVisit.doctor.name}</td>
+                  <td>
+                    <StatusBadge status={pastVisit.status} />
+                  </td>
+                  <td>{pastVisit.prescriptions.length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </main>
   );

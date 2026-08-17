@@ -472,6 +472,24 @@ main > header p {
   color: var(--color-success-text);
 }
 
+/* Flash messages (src/app/components/FlashMessage.tsx) render as a fixed
+   toast instead of sitting inline whenever the triggering form happened to
+   be on the page -- a confirmation for an action taken low on a long page
+   (e.g. front-desk's "Register new patient" form) needs to stay visible
+   without the user having to scroll back up to notice it. Scoped to this
+   one class, not all .alert usages, so static banners like the doctor
+   queue's low-stock warning stay inline where they belong. */
+.flash-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: min(90vw, 480px);
+  box-shadow: 0 4px 16px rgba(16, 24, 40, 0.15);
+  margin-bottom: 0;
+}
+
 @media print {
   .no-print {
     display: none;

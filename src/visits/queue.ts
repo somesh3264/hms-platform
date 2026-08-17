@@ -59,6 +59,10 @@ export async function listVisitsForDoctor(
           name: true,
           age: true,
           gender: true,
+          // Lets the doctor's queue flag returning patients (visits.length
+          // includes this very visit, so >1 means there's at least one
+          // other) without a separate query per row.
+          _count: { select: { visits: true } },
         },
       },
     },

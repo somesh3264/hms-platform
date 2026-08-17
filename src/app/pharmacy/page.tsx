@@ -38,7 +38,6 @@ export default async function PharmacyQueuePage() {
               <tr>
                 <th>Received</th>
                 <th>Patient</th>
-                <th>Department</th>
                 <th>Uploaded by</th>
                 <th>Scan</th>
                 <th></th>
@@ -51,7 +50,6 @@ export default async function PharmacyQueuePage() {
                   <td>
                     {prescription.patient.name} ({prescription.patient.patientCode})
                   </td>
-                  <td>{prescription.visit.department ?? '—'}</td>
                   <td>{prescription.uploadedBy.name}</td>
                   <td>
                     <a href={prescription.fileUrl} target="_blank" rel="noreferrer">

@@ -28,7 +28,6 @@ export default async function BillingPage({ searchParams }: { searchParams: { q?
             <thead>
               <tr>
                 <th>Patient</th>
-                <th>Department</th>
                 <th>Visit date</th>
                 <th></th>
               </tr>
@@ -39,7 +38,6 @@ export default async function BillingPage({ searchParams }: { searchParams: { q?
                   <td>
                     {visit.patient.name} ({visit.patient.patientCode})
                   </td>
-                  <td>{visit.department ?? '—'}</td>
                   <td>{visit.visitDate.toLocaleDateString()}</td>
                   <td>
                     <Link href={`/billing/new/${visit.id}`}>Generate bill</Link>

@@ -43,8 +43,6 @@ export default async function DispensePrescriptionPage({
           <dd>
             <StatusBadge status={prescription.status} />
           </dd>
-          <dt>Department</dt>
-          <dd>{prescription.visit.department ?? '—'}</dd>
           <dt>Uploaded by</dt>
           <dd>{prescription.uploadedBy.name}</dd>
           <dt>Uploaded</dt>

@@ -18,6 +18,8 @@ const STATUS_TONE: Record<string, string> = {
   'LOW STOCK': 'badge-warning',
   EXPIRED: 'badge-danger',
   'EXPIRES SOON': 'badge-warning',
+  // Returning-patient flag (src/app/doctor) -- patient._count.visits > 1.
+  RETURNING: 'badge-info',
 };
 
 // Small presentational component shared across every screen that renders a

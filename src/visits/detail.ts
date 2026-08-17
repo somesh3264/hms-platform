@@ -10,7 +10,10 @@ export async function getVisitDetail(
   const visit = await tx.visit.findFirst({
     where: { id: params.visitId, hospitalId: params.hospitalId },
     include: {
-      patient: true,
+      // Lets the visit detail screen flag a returning patient (visits count
+      // includes this very visit, so >1 means there's at least one other)
+      // without a separate query.
+      patient: { include: { _count: { select: { visits: true } } } },
       doctor: { select: { id: true, name: true } },
       prescriptions: { orderBy: { createdAt: 'desc' } },
     },

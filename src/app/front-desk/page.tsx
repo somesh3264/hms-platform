@@ -146,7 +146,6 @@ export default async function FrontDeskPage({
                           </option>
                         ))}
                       </select>
-                      <input type="text" name="department" placeholder="Department (optional)" />
                       <div className="inline-fields">
                         <label>
                           Appointment date
@@ -246,7 +245,6 @@ export default async function FrontDeskPage({
               <th>Token #</th>
               <th>Patient</th>
               <th>Doctor</th>
-              <th>Department</th>
               <th>Since</th>
               <th>Consultation fee</th>
               <th>Other charges</th>
@@ -255,7 +253,7 @@ export default async function FrontDeskPage({
           <tbody>
             {queue.length === 0 && (
               <tr>
-                <td colSpan={7}>No patients waiting.</td>
+                <td colSpan={6}>No patients waiting.</td>
               </tr>
             )}
             {queue.map((visit) => (
@@ -265,7 +263,6 @@ export default async function FrontDeskPage({
                   {visit.patient.name} ({visit.patient.patientCode})
                 </td>
                 <td>{visit.doctor.name}</td>
-                <td>{visit.department ?? '—'}</td>
                 <td>{visit.visitDate.toLocaleString()}</td>
                 <td>
                   {visit.bills.length > 0 ? (

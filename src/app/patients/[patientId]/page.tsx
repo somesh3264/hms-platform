@@ -46,7 +46,6 @@ export default async function PatientRecordPage({ params }: { params: { patientI
                 {visit.visitDate.toLocaleDateString()} — {visit.doctor.name}{' '}
                 <StatusBadge status={visit.status} />
               </h3>
-              {visit.department && <p>Department: {visit.department}</p>}
               {visit.consultationNotes && <p>Notes: {visit.consultationNotes}</p>}
 
               <h4>Prescriptions</h4>

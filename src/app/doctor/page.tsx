@@ -81,6 +81,11 @@ export default async function DoctorQueuePage({
       </section>
 
       <section>
+        <h2>Waiting</h2>
+        <VisitList visits={waiting} emptyLabel="No patients waiting." />
+      </section>
+
+      <section>
         <h2>Find a patient</h2>
         <p>
           Look up any patient by name, ID, or phone — including walk-ins or past patients not in
@@ -128,17 +133,6 @@ export default async function DoctorQueuePage({
       </section>
 
       <section>
-        <h2>In consultation</h2>
-        <p>Visits you&apos;ve already opened and can resume.</p>
-        <VisitList visits={inConsultation} emptyLabel="None in progress." />
-      </section>
-
-      <section>
-        <h2>Waiting</h2>
-        <VisitList visits={waiting} emptyLabel="No patients waiting." />
-      </section>
-
-      <section>
         <h2>Completed today</h2>
         <p>Retained here for the day so you can reopen one if needed.</p>
         <VisitList visits={completed} emptyLabel="None completed yet." muted />
@@ -156,13 +150,13 @@ function VisitList({
     id: string;
     status: VisitStatus;
     tokenNumber: number | null;
-    department: string | null;
     visitDate: Date;
     patient: {
       patientCode: string;
       name: string;
       age: number;
       gender: Gender;
+      _count: { visits: number };
     };
   }[];
   emptyLabel: string;
@@ -180,7 +174,6 @@ function VisitList({
           <th>Patient</th>
           <th>Age</th>
           <th>Gender</th>
-          <th>Department</th>
           <th>Since</th>
           <th>Status</th>
           <th></th>
@@ -192,10 +185,15 @@ function VisitList({
             <td>{visit.tokenNumber ?? '—'}</td>
             <td>
               {visit.patient.name} ({visit.patient.patientCode})
+              {visit.patient._count.visits > 1 && (
+                <>
+                  {' '}
+                  <StatusBadge status="RETURNING" />
+                </>
+              )}
             </td>
             <td>{visit.patient.age}</td>
             <td>{visit.patient.gender}</td>
-            <td>{visit.department ?? '—'}</td>
             <td>{visit.visitDate.toLocaleString()}</td>
             <td>
               <StatusBadge status={visit.status} />

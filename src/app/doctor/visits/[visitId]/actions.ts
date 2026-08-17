@@ -135,6 +135,9 @@ export async function completeConsultationAction(formData: FormData): Promise<vo
     });
   }
 
+  // Unlike the other actions on this page, success sends the doctor back to
+  // the queue rather than staying on this visit -- completing a
+  // consultation is naturally a "done here, on to the next patient" moment.
   revalidatePath('/doctor');
-  redirectWithFlash(path, { success: 'Consultation marked complete.' });
+  redirectWithFlash('/doctor', { success: 'Consultation marked complete.' });
 }

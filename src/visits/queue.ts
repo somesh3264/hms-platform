@@ -1,16 +1,26 @@
 import type { Prisma, VisitStatus } from '@prisma/client';
 
+import { getISTDayBoundsUTC } from '@/shared';
+
 // Queue/list view of patients waiting for a doctor (FR-3.5), FIFO by
 // visitDate. Optionally scoped to a single doctor for the doctor's own queue
-// (FR-4.2).
+// (FR-4.2). Bounded to today (IST) -- without this, a visit nobody ever
+// started or completed (a no-show, an abandoned booking, stale test data)
+// would sit in front desk's queue forever, same reasoning as the doctor's
+// own home screen already bounding to today via getISTDayBoundsUTC. A
+// visit booked for a future date is likewise excluded until that day
+// actually arrives -- it isn't something front desk needs to act on yet.
 export async function listWaitingQueue(
   tx: Prisma.TransactionClient,
   params: { hospitalId: string; doctorId?: string },
 ) {
+  const { start, end } = getISTDayBoundsUTC();
+
   return tx.visit.findMany({
     where: {
       hospitalId: params.hospitalId,
       status: 'WAITING',
+      visitDate: { gte: start, lt: end },
       ...(params.doctorId ? { doctorId: params.doctorId } : {}),
     },
     orderBy: { visitDate: 'asc' },
@@ -23,6 +33,32 @@ export async function listWaitingQueue(
       // dispensing (and so a medicine bill) requires IN_CONSULTATION first.
       // So "any PAID bill" reliably means "fee already collected."
       bills: { where: { paymentStatus: 'PAID' }, select: { id: true } },
+    },
+  });
+}
+
+// Front desk's own awareness of consultations finishing (a later,
+// explicitly requested addition) -- previously front desk had zero
+// visibility into a visit once it left WAITING (listWaitingQueue above
+// only ever returns WAITING rows), so a patient's consultation could
+// finish with no sign of it anywhere on the front-desk screen. Visit has
+// no dedicated completedAt field; updatedAt is a safe stand-in here since
+// completeConsultation's status write is the last change a COMPLETED visit
+// ever receives.
+export async function listRecentlyCompletedVisits(
+  tx: Prisma.TransactionClient,
+  params: { hospitalId: string; since: Date },
+) {
+  return tx.visit.findMany({
+    where: {
+      hospitalId: params.hospitalId,
+      status: 'COMPLETED',
+      updatedAt: { gte: params.since },
+    },
+    orderBy: { updatedAt: 'desc' },
+    include: {
+      patient: { select: { id: true, patientCode: true, name: true } },
+      doctor: { select: { id: true, name: true } },
     },
   });
 }

@@ -18,6 +18,13 @@ export default async function PharmacyQueuePage() {
 
   return (
     <main>
+      {/* Pure-HTML auto-refresh (no client JS) so a prescription a doctor
+          just uploaded, or a consultation they just completed, shows up
+          here without the pharmacist manually reloading. Safe on this page
+          specifically because it has no forms to lose in-progress input to
+          -- unlike front desk's queue, which deliberately does NOT do this
+          (see that page's own comment). */}
+      <meta httpEquiv="refresh" content="30" />
       <h1>Pharmacy Queue</h1>
       <p>
         <Link href="/pharmacy/inventory">View inventory</Link>

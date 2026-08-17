@@ -1,8 +1,8 @@
 import Link from 'next/link';
 
 import { searchPatients } from '@/patients';
-import { prisma, requireSession, withHospitalContext } from '@/shared';
-import { listWaitingQueue } from '@/visits';
+import { getISTDayBoundsUTC, prisma, requireSession, withHospitalContext } from '@/shared';
+import { listRecentlyCompletedVisits, listWaitingQueue } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
@@ -83,19 +83,33 @@ export default async function FrontDeskPage({
     select: { upiQrCodeUrl: true },
   });
 
-  const { searchResults, queue, doctors } = await withHospitalContext(hospitalId, async (tx) => {
-    const searchResults = query ? await searchPatients(tx, { hospitalId, query }) : [];
-    const queue = await listWaitingQueue(tx, { hospitalId });
-    const doctors = await tx.user.findMany({
-      where: { hospitalId, role: 'DOCTOR', isActive: true },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
-    });
-    return { searchResults, queue, doctors };
-  });
+  const { searchResults, queue, recentlyCompleted, doctors } = await withHospitalContext(
+    hospitalId,
+    async (tx) => {
+      const searchResults = query ? await searchPatients(tx, { hospitalId, query }) : [];
+      const queue = await listWaitingQueue(tx, { hospitalId });
+      const recentlyCompleted = await listRecentlyCompletedVisits(tx, {
+        hospitalId,
+        since: getISTDayBoundsUTC().start,
+      });
+      const doctors = await tx.user.findMany({
+        where: { hospitalId, role: 'DOCTOR', isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      });
+      return { searchResults, queue, recentlyCompleted, doctors };
+    },
+  );
 
   return (
     <main>
+      {/* Deliberately no auto-refresh meta tag here, unlike /pharmacy --
+          this page has substantial in-progress forms (patient
+          registration, fee collection), and a timed reload would silently
+          wipe whatever a staff member is mid-typing. Every registration,
+          search, and fee collection already reloads this page via its own
+          Server Action, so the queue and "Completed today" section stay
+          reasonably fresh through normal use without that risk. */}
       <h1>Front Desk</h1>
 
       <FlashMessage success={searchParams.success} error={searchParams.error} />
@@ -282,6 +296,41 @@ export default async function FrontDeskPage({
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section>
+        <h2>Completed today</h2>
+        <p>So you know when a patient&apos;s consultation has just finished.</p>
+        {recentlyCompleted.length === 0 ? (
+          <p>None completed yet today.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Token #</th>
+                <th>Patient</th>
+                <th>Doctor</th>
+                <th>Completed</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentlyCompleted.map((visit) => (
+                <tr key={visit.id}>
+                  <td>{visit.tokenNumber ?? '—'}</td>
+                  <td>
+                    {visit.patient.name} ({visit.patient.patientCode})
+                  </td>
+                  <td>{visit.doctor.name}</td>
+                  <td>{visit.updatedAt.toLocaleString()}</td>
+                  <td>
+                    <Link href={`/front-desk/bill/${visit.id}`}>Bill for surgery/procedure</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </main>
   );

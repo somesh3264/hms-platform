@@ -5,7 +5,6 @@ import type { UserRole } from '@prisma/client';
 
 import { getSession, prisma } from '@/shared';
 
-import { logoutAction } from './logout/actions';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -69,7 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {session.name} ({session.role.replace('_', ' ')}
                 {session.department ? ` — ${session.department}` : ''})
               </span>
-              <form action={logoutAction}>
+              <form method="post" action="/logout">
                 <button type="submit">Log out</button>
               </form>
             </div>

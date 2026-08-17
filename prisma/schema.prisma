@@ -1,5 +1,11 @@
 generator client {
   provider = "prisma-client-js"
+  // "native" covers local dev (whatever platform that happens to be);
+  // "linux-musl-openssl-3.0.x" is pinned explicitly for the production
+  // Docker image (node:20-alpine) rather than relying solely on
+  // auto-detection at generate time, which has already mismatched what the
+  // runtime image actually needed once.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

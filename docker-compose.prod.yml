@@ -38,12 +38,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # `--env-file .env.production` on the command line only makes those
+    # variables available for ${...} substitution inside *this* file -- it
+    # does NOT inject them into the container by itself. `env_file:` here is
+    # what actually passes every variable in that file through to the
+    # container's environment (previously only 6 specific ones were listed
+    # explicitly under `environment:`, silently missing the BOOTSTRAP_*
+    # ones prisma/bootstrap.mjs needs).
+    env_file:
+      - .env.production
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      APP_DATABASE_URL: ${APP_DATABASE_URL}
-      SESSION_SECRET: ${SESSION_SECRET}
-      PLATFORM_ADMIN_SECRET: ${PLATFORM_ADMIN_SECRET}
-      ROOT_DOMAIN: ${ROOT_DOMAIN}
       NODE_ENV: production
     volumes:
       # Prescription scans / logos / UPI QR codes (src/shared/storage.ts)

@@ -17,6 +17,12 @@ RUN npm ci
 # ---------- builder ----------
 FROM base AS builder
 WORKDIR /app
+# Must be installed here too, not just in the runner stage below: `prisma
+# generate` detects the OpenSSL version present *at generate time* to pick
+# the right query-engine binary. Skip this and it silently falls back to a
+# generic target that doesn't match what the runner stage actually has,
+# producing a binary the runtime can't load at all.
+RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Generates the Prisma Client (and its query-engine binary) against *this*

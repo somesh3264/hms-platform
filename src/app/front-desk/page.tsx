@@ -1,7 +1,13 @@
 import Link from 'next/link';
 
 import { searchPatients } from '@/patients';
-import { getISTDayBoundsUTC, prisma, requireSession, withHospitalContext } from '@/shared';
+import {
+  getISTDayBoundsUTC,
+  getISTNowDateTimeStrings,
+  prisma,
+  requireSession,
+  withHospitalContext,
+} from '@/shared';
 import { listRecentlyCompletedVisits, listWaitingQueue } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
@@ -54,20 +60,6 @@ function ConsultationFeeFields({
   );
 }
 
-// Local-time "YYYY-MM-DD" / "HH:mm" defaultValues for the separate
-// appointment date and time <input>s (split from one datetime-local field
-// since that combined picker made the time easy to miss) -- local wall-clock
-// time, same as how the browser will hand them back on submit.
-function toDateOnlyValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function toTimeOnlyValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 export default async function FrontDeskPage({
   searchParams,
 }: {
@@ -75,8 +67,11 @@ export default async function FrontDeskPage({
 }) {
   const { hospitalId } = await requireSession(['FRONT_DESK']);
   const query = searchParams.q?.trim() ?? '';
-  const nowDate = toDateOnlyValue(new Date());
-  const nowTime = toTimeOnlyValue(new Date());
+  // IST wall-clock "now", not the server's own local time -- the
+  // production Docker container runs in UTC with no TZ configured, so
+  // plain Date getters here previously showed a stale past date/time on
+  // this exact form in production (see src/shared/ist-date.ts).
+  const { dateOnly: nowDate, timeOnly: nowTime } = getISTNowDateTimeStrings();
 
   const hospital = await prisma.hospital.findUniqueOrThrow({
     where: { id: hospitalId },

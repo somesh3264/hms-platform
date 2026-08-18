@@ -4,7 +4,7 @@ import type { Gender, PaymentMethod, Prisma } from '@prisma/client';
 
 import { collectConsultationFee } from '@/billing';
 import { registerPatient } from '@/patients';
-import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
+import { parseISTDateTime, redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 import { createVisit } from '@/visits';
 
 function optionalString(formData: FormData, key: string): string | undefined {
@@ -15,8 +15,13 @@ function optionalString(formData: FormData, key: string): string | undefined {
 // Combines the separate appointment date (<input type="date">) and time
 // (<input type="time">) fields -- split from one datetime-local field since
 // that combined picker made the time easy to miss -- back into the single
-// instant Visit.visitDate needs. No timezone in either part -- interpreted
-// as the server's local time, same as the previous single-field version.
+// instant Visit.visitDate needs. Both fields represent front desk's
+// intended IST wall-clock time (matching the page's own IST-based
+// defaults, src/shared/getISTNowDateTimeStrings), so parseISTDateTime
+// pins the +05:30 offset explicitly -- a bare `new Date(dateStr+'T'+timeStr)`
+// (no offset) is parsed as the *server's own* local time instead, which
+// silently stored the wrong Visit.visitDate in production (server runs in
+// UTC) regardless of what front desk actually typed.
 function combineDateAndTime(
   dateStr: string | undefined,
   timeStr: string | undefined,
@@ -25,7 +30,7 @@ function combineDateAndTime(
   if (!dateStr || !timeStr) {
     throw new Error('Both an appointment date and time are required if either is set.');
   }
-  const parsed = new Date(`${dateStr}T${timeStr}`);
+  const parsed = parseISTDateTime(dateStr, timeStr);
   if (Number.isNaN(parsed.getTime())) {
     throw new Error('Invalid appointment date/time.');
   }

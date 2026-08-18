@@ -37,6 +37,48 @@ export function getISTDayBoundsUTC(date: Date = new Date()): { start: Date; end:
   return { start, end };
 }
 
+// "HH:mm" for the given instant's IST wall-clock time, regardless of the
+// server's own timezone -- same reasoning as getISTDateString above,
+// applied to the time half. hourCycle: 'h23' (not hour12: false) avoids a
+// real Intl quirk where midnight can render as "24:00" in some engines.
+function getISTTimeString(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: IST_TIME_ZONE,
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(date);
+
+  const get = (type: string) => parts.find((p) => p.type === type)!.value;
+
+  return `${get('hour')}:${get('minute')}`;
+}
+
+// "YYYY-MM-DD" / "HH:mm" pair for the given instant's IST wall-clock time --
+// e.g. front desk's appointment date/time <input> defaults
+// (src/app/front-desk/page.tsx), which must show IST "now" even when the
+// server itself runs in UTC (as the production Docker container does, with
+// no TZ configured) -- using plain `Date` getters there previously showed a
+// stale past date/time in production while looking correct in local dev
+// (whose server process happens to already run in IST).
+export function getISTNowDateTimeStrings(date: Date = new Date()): {
+  dateOnly: string;
+  timeOnly: string;
+} {
+  return { dateOnly: getISTDateString(date), timeOnly: getISTTimeString(date) };
+}
+
+// Inverse of the pair above: given a "YYYY-MM-DD" date and "HH:mm" time
+// that together represent an IST wall-clock moment (e.g. front desk's
+// submitted appointment date/time), returns the correct UTC instant.
+// `new Date(\`${dateStr}T${timeStr}\`)` (no offset suffix) is parsed as
+// *server-local* time, not IST -- the same bug as above, but on the write
+// path, where it's worse: it would silently store the wrong Visit.visitDate
+// in production regardless of what front desk actually typed.
+export function parseISTDateTime(dateStr: string, timeStr: string): Date {
+  return new Date(`${dateStr}T${timeStr}:00.000+05:30`);
+}
+
 // Same idea as getISTDayBoundsUTC, but for the given instant's IST calendar
 // month (e.g. the doctor reporting screen's "This month" figures).
 export function getISTMonthBoundsUTC(date: Date = new Date()): { start: Date; end: Date } {

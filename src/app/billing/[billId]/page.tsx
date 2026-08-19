@@ -1,15 +1,40 @@
+import type { Metadata } from 'next';
+
 import { getBillDetail } from '@/billing';
 import { requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
-import { PrintBillButton } from '@/app/components/PrintBillButton';
+import { PrintButton } from '@/app/components/PrintButton';
 import { StatusBadge } from '@/app/components/StatusBadge';
 import { UpiQrCode } from '@/app/components/UpiQrCode';
 
 import { recordPaymentAction } from './actions';
 
+// Names the "Save as PDF" file after the patient rather than the page's
+// generic "HMS Platform" default (a later, explicitly requested fix -- as
+// the patient count grows, a folder of same-named downloads is useless).
+// Browsers seed the print dialog's suggested filename from the document
+// title, so this is the whole fix; it doesn't change what's shown on-page.
+export async function generateMetadata({
+  params,
+}: {
+  params: { billId: string };
+}): Promise<Metadata> {
+  const { hospitalId } = await requireSession();
+  const bill = await withHospitalContext(hospitalId, (tx) =>
+    tx.bill.findFirst({
+      where: { id: params.billId, hospitalId },
+      select: { billNumber: true, patient: { select: { name: true, patientCode: true } } },
+    }),
+  );
+  if (!bill) {
+    return {};
+  }
+  return { title: `${bill.patient.name} (${bill.patient.patientCode}) - Bill ${bill.billNumber}` };
+}
+
 // Printable via the browser's native print (Ctrl/Cmd+P, or the explicit
-// PrintBillButton below) -- no PDF library dependency. @media print hides
+// PrintButton below) -- no PDF library dependency. @media print hides
 // the payment form/nav/button so what prints is just the invoice,
 // satisfying FR-7.6 (print/export with hospital name and logo) without
 // server-side PDF generation, which the TRD calls for but isn't built here;
@@ -48,7 +73,7 @@ export default async function BillDetailPage({
 
       <div className="no-print">
         <FlashMessage success={searchParams.success} error={searchParams.error} />
-        <PrintBillButton />
+        <PrintButton />
       </div>
 
       <section>
@@ -114,6 +139,11 @@ export default async function BillDetailPage({
             {bill.paymentReference && ` (ref: ${bill.paymentReference})`}
           </p>
         )}
+
+        {/* Part of the printable invoice itself (not .no-print) -- a later,
+            explicitly requested addition so both the on-screen and printed
+            copy carry the same reassurance. */}
+        <p className="print-footer-note">This bill is digitally generated, seal is not required.</p>
       </section>
 
       {bill.paymentStatus === 'PENDING' && role === 'PHARMACIST' && (

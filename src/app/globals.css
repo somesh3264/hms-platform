@@ -325,6 +325,29 @@ main > header p {
   opacity: 0.6;
 }
 
+/* Bottom-of-invoice reassurance line (a later, explicitly requested
+   addition) -- small and muted like the app's other secondary text, shown
+   both on-screen and in the printed copy since it's part of main >
+   section, not .no-print. */
+.print-footer-note {
+  margin-top: 2rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* Blank space on the front desk's printed prescription form (see
+   src/app/front-desk/prescription-form/[visitId]) for the doctor to
+   hand-write the diagnosis/medicines -- the hospital has no printer at the
+   doctor's desk, so this page is printed in advance at the front desk and
+   physically carried in by the patient. A fixed min-height (not flexible
+   content) since there's nothing to size it to -- it's deliberately empty. */
+.prescription-writing-area {
+  min-height: 380px;
+  margin-top: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
 /* Shared app chrome (src/app/layout.tsx) -- only rendered once a session
    exists, so /login stays a bare unstyled-by-this-block form. */
 .app-header {

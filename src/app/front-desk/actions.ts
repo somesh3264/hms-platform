@@ -106,6 +106,7 @@ async function maybeCollectConsultationFee(
 export async function registerPatientAction(formData: FormData): Promise<void> {
   const { hospitalId, actorId } = await requireSession(['FRONT_DESK']);
 
+  let visitId: string | undefined;
   let feeCollected = false;
   try {
     const name = optionalString(formData, 'name');
@@ -130,7 +131,7 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
       optionalString(formData, 'visitTimeOnly'),
     );
 
-    feeCollected = await withHospitalContext(hospitalId, async (tx) => {
+    ({ visitId, feeCollected } = await withHospitalContext(hospitalId, async (tx) => {
       const patient = await registerPatient(tx, {
         hospitalId,
         actorId,
@@ -144,7 +145,7 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
       });
 
       if (!doctorId) {
-        return false;
+        return { visitId: undefined, feeCollected: false };
       }
       const visit = await createVisit(tx, {
         hospitalId,
@@ -153,24 +154,32 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
         doctorId,
         visitDate,
       });
-      return maybeCollectConsultationFee(tx, {
+      const collected = await maybeCollectConsultationFee(tx, {
         hospitalId,
         actorId,
         visitId: visit.id,
         formData,
       });
-    });
+      return { visitId: visit.id, feeCollected: collected };
+    }));
   } catch (err) {
     redirectWithFlash('/front-desk', {
       error: err instanceof Error ? err.message : 'Failed to register patient.',
     });
   }
 
-  redirectWithFlash('/front-desk', {
-    success: feeCollected
-      ? 'Patient registered and consultation fee collected.'
-      : 'Patient registered successfully.',
-  });
+  const successMessage = feeCollected
+    ? 'Patient registered and consultation fee collected.'
+    : 'Patient registered successfully.';
+
+  // Only a visit (doctor assigned) has anything printable -- a
+  // patient-only registration has no bill and no doctor to write a
+  // prescription form for, so it goes back to the plain front-desk screen
+  // exactly as before.
+  if (visitId) {
+    redirectWithFlash(`/front-desk/visit/${visitId}`, { success: successMessage });
+  }
+  redirectWithFlash('/front-desk', { success: successMessage });
 }
 
 export async function createVisitAction(formData: FormData): Promise<void> {
@@ -178,6 +187,7 @@ export async function createVisitAction(formData: FormData): Promise<void> {
   const query = optionalString(formData, 'q');
   const path = query ? `/front-desk?q=${encodeURIComponent(query)}` : '/front-desk';
 
+  let visitId = '';
   let feeCollected = false;
   try {
     const patientId = optionalString(formData, 'patientId');
@@ -190,7 +200,7 @@ export async function createVisitAction(formData: FormData): Promise<void> {
       optionalString(formData, 'visitTimeOnly'),
     );
 
-    feeCollected = await withHospitalContext(hospitalId, async (tx) => {
+    ({ visitId, feeCollected } = await withHospitalContext(hospitalId, async (tx) => {
       const visit = await createVisit(tx, {
         hospitalId,
         actorId,
@@ -199,20 +209,25 @@ export async function createVisitAction(formData: FormData): Promise<void> {
         department: optionalString(formData, 'department'),
         visitDate,
       });
-      return maybeCollectConsultationFee(tx, {
+      const collected = await maybeCollectConsultationFee(tx, {
         hospitalId,
         actorId,
         visitId: visit.id,
         formData,
       });
-    });
+      return { visitId: visit.id, feeCollected: collected };
+    }));
   } catch (err) {
     redirectWithFlash(path, {
       error: err instanceof Error ? err.message : 'Failed to create visit.',
     });
   }
 
-  redirectWithFlash(path, {
+  // Unlike registerPatientAction, a doctor is always required on this form
+  // (see the throw above), so a visit always exists here -- this always has
+  // something printable, so it always lands on the print landing page
+  // rather than back at the search results.
+  redirectWithFlash(`/front-desk/visit/${visitId}`, {
     success: feeCollected
       ? 'Visit created and consultation fee collected.'
       : 'Visit created successfully.',
@@ -226,9 +241,9 @@ export async function createVisitAction(formData: FormData): Promise<void> {
 // always requires the fee/payment fields outright, no date-based deferral.
 export async function collectConsultationFeeAction(formData: FormData): Promise<void> {
   const { hospitalId, actorId } = await requireSession(['FRONT_DESK']);
+  const visitId = optionalString(formData, 'visitId');
 
   try {
-    const visitId = optionalString(formData, 'visitId');
     if (!visitId) {
       throw new Error('Missing visit.');
     }
@@ -253,10 +268,13 @@ export async function collectConsultationFeeAction(formData: FormData): Promise<
       }),
     );
   } catch (err) {
-    redirectWithFlash('/front-desk', {
+    redirectWithFlash(visitId ? `/front-desk/visit/${visitId}` : '/front-desk', {
       error: err instanceof Error ? err.message : 'Failed to collect consultation fee.',
     });
   }
 
-  redirectWithFlash('/front-desk', { success: 'Consultation fee collected.' });
+  // Lands on the same print landing page as registration/create-visit above,
+  // so front desk can print the just-collected bill immediately (point 1)
+  // instead of having to find it again from the waiting queue.
+  redirectWithFlash(`/front-desk/visit/${visitId}`, { success: 'Consultation fee collected.' });
 }

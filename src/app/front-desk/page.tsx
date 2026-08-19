@@ -257,12 +257,13 @@ export default async function FrontDeskPage({
               <th>Since</th>
               <th>Consultation fee</th>
               <th>Other charges</th>
+              <th>Prescription form</th>
             </tr>
           </thead>
           <tbody>
             {queue.length === 0 && (
               <tr>
-                <td colSpan={6}>No patients waiting.</td>
+                <td colSpan={7}>No patients waiting.</td>
               </tr>
             )}
             {queue.map((visit) => (
@@ -286,6 +287,12 @@ export default async function FrontDeskPage({
                 </td>
                 <td>
                   <Link href={`/front-desk/bill/${visit.id}`}>Bill for surgery/procedure</Link>
+                </td>
+                <td>
+                  {/* Reprint access for a visit already past registration --
+                      e.g. a booked appointment printed days ago whose paper
+                      got lost, or one skipped at registration time. */}
+                  <Link href={`/front-desk/prescription-form/${visit.id}`}>Print</Link>
                 </td>
               </tr>
             ))}

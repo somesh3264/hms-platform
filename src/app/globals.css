@@ -348,6 +348,77 @@ main > header p {
   border-radius: 4px;
 }
 
+/* Front desk's printed prescription form, modeled directly on a photo of
+   the hospital's actual pre-printed letterhead -- see that page for the
+   full reasoning. --color-accent-maroon approximates (not exactly
+   colorpicked from a phone photo) the maroon rules/stamp color on the real
+   paper; used nowhere else, so it's a local variable rather than a new
+   theme-wide token. */
+.letterhead {
+  --color-accent-maroon: #8a3b3b;
+}
+
+.letterhead-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.letterhead-logo {
+  max-height: 80px;
+}
+
+.letterhead-rule {
+  margin: 1rem 0;
+  border-top: 2px solid var(--color-accent-maroon);
+}
+
+.letterhead-body {
+  display: flex;
+  gap: 1.5rem;
+}
+
+/* The real letterhead lists every doctor at the practice on every printed
+   sheet (a static roster), not just whoever this particular patient is
+   seeing -- staff reading the paper already know from context which one
+   applies. letterhead-sidebar-doctor-assigned bolds the one actually
+   assigned to this visit, the one addition beyond a literal copy, so the
+   printout itself is unambiguous when there's more than one doctor. */
+.letterhead-sidebar {
+  flex: 0 0 200px;
+  border-right: 2px solid var(--color-accent-maroon);
+  padding-right: 1.5rem;
+}
+
+.letterhead-sidebar-doctor {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.letterhead-sidebar-doctor-assigned {
+  color: var(--color-text);
+}
+
+.letterhead-content {
+  flex: 1;
+}
+
+.letterhead-patient-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.letterhead-footer {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-accent-maroon);
+}
+
 /* Shared app chrome (src/app/layout.tsx) -- only rendered once a session
    exists, so /login stays a bare unstyled-by-this-block form. */
 .app-header {

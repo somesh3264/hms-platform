@@ -15,21 +15,48 @@ import { PrintButton } from '@/app/components/PrintButton';
 // stays exactly as it is: once the doctor has hand-written on this printed
 // page, they photograph/scan it and upload it through the existing
 // "Scanned prescription" flow on their own visit screen, same as today.
-// This page only ever reads Patient/Visit/Hospital data that already
+// This page only ever reads Patient/Visit/Hospital/User data that already
 // exists; it creates nothing.
+//
+// Layout modeled directly on a photo of the hospital's actual pre-printed
+// letterhead (a later, explicitly requested reference, not guessed at):
+// logo + hospital name/address across the top over a full-width rule, a
+// left sidebar listing every doctor at the practice (a static roster on
+// the real paper, same on every sheet regardless of who's actually seeing
+// this particular patient), and the patient's name/age-sex/date filled in
+// at the top of the right-hand writing area. The roster is real data here
+// (every active DOCTOR-role user), not hardcoded -- the one addition beyond
+// a literal copy is bolding the doctor actually assigned to this visit, so
+// it's unambiguous which one of possibly several doctors this printout is
+// for, since the physical version relies on staff already knowing that
+// from context. The "valid for 10 days" line is copied verbatim from the
+// same photo -- an existing clinical/business policy of this hospital's,
+// not something invented here.
+// Fetches the visit and the full doctor roster in the same transaction --
+// `users` is RLS-protected same as every other tenant-owned table, so the
+// roster query has to run through this same withHospitalContext (a plain
+// `prisma.user.findMany` outside of it would silently come back empty, not
+// throw, since the RLS policy fails closed with no app.current_hospital_id
+// session variable set).
 async function loadPrescriptionForm(hospitalId: string, visitId: string) {
-  return withHospitalContext(hospitalId, (tx) =>
-    tx.visit.findFirstOrThrow({
+  return withHospitalContext(hospitalId, async (tx) => {
+    const visit = await tx.visit.findFirstOrThrow({
       where: { id: visitId, hospitalId },
       select: {
         id: true,
         visitDate: true,
         tokenNumber: true,
         patient: { select: { name: true, patientCode: true, age: true, gender: true } },
-        doctor: { select: { name: true, department: true } },
+        doctor: { select: { id: true, name: true, department: true } },
       },
-    }),
-  );
+    });
+    const doctors = await tx.user.findMany({
+      where: { hospitalId, role: 'DOCTOR', isActive: true },
+      select: { id: true, name: true, department: true },
+      orderBy: { name: 'asc' },
+    });
+    return { visit, doctors };
+  });
 }
 
 // Same "download filename should identify the patient" fix as the bill
@@ -41,7 +68,7 @@ export async function generateMetadata({
   params: { visitId: string };
 }): Promise<Metadata> {
   const { hospitalId } = await requireSession(['FRONT_DESK']);
-  const visit = await loadPrescriptionForm(hospitalId, params.visitId);
+  const { visit } = await loadPrescriptionForm(hospitalId, params.visitId);
   return {
     title: `${visit.patient.name} (${visit.patient.patientCode}) - Prescription Form`,
   };
@@ -54,63 +81,81 @@ export default async function PrescriptionFormPage({
 }) {
   const { hospitalId } = await requireSession(['FRONT_DESK']);
 
-  const [visit, hospital] = await Promise.all([
+  const [{ visit, doctors }, hospital] = await Promise.all([
     loadPrescriptionForm(hospitalId, params.visitId),
     prisma.hospital.findUniqueOrThrow({
       where: { id: hospitalId },
-      select: { name: true, logoUrl: true, address: true, contactPhone: true },
+      select: { name: true, logoUrl: true, address: true },
     }),
   ]);
 
   return (
     <main>
-      <header>
-        {/* Plain <img>, not next/image -- same rationale as the bill's own
-            header (local dev-only storage, arbitrary source). */}
-        {hospital.logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={hospital.logoUrl} alt={hospital.name} style={{ maxHeight: '80px' }} />
-        )}
-        <h1>{hospital.name}</h1>
-        {hospital.address && <p>{hospital.address}</p>}
-        {hospital.contactPhone && <p>Phone: {hospital.contactPhone}</p>}
-      </header>
-
       <div className="no-print">
         <PrintButton />
       </div>
 
-      <section>
-        <h2>Prescription</h2>
-        <dl>
-          <dt>Patient</dt>
-          <dd>
-            {visit.patient.name} ({visit.patient.patientCode})
-          </dd>
-          <dt>Age / Gender</dt>
-          <dd>
-            {visit.patient.age} / {visit.patient.gender}
-          </dd>
-          <dt>Doctor</dt>
-          <dd>
-            {visit.doctor.name}
-            {visit.doctor.department ? ` — ${visit.doctor.department}` : ''}
-          </dd>
-          <dt>Date</dt>
-          <dd>{visit.visitDate.toLocaleDateString()}</dd>
-          {visit.tokenNumber && (
-            <>
-              <dt>Token #</dt>
-              <dd>{visit.tokenNumber}</dd>
-            </>
+      <div className="letterhead">
+        <div className="letterhead-header">
+          {/* Plain <img>, not next/image -- same rationale as the bill's
+              own header (local dev-only storage, arbitrary source). */}
+          {hospital.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={hospital.logoUrl} alt={hospital.name} className="letterhead-logo" />
           )}
-        </dl>
+          <div>
+            <h1>{hospital.name}</h1>
+            {hospital.address && <p>Address: {hospital.address}</p>}
+          </div>
+        </div>
 
-        {/* Deliberately blank -- the doctor hand-writes the diagnosis and
-            medicines here, then this same page is photographed/scanned and
-            uploaded through the existing doctor prescription-upload flow. */}
-        <div className="prescription-writing-area" aria-hidden="true" />
-      </section>
+        <div className="letterhead-rule" />
+
+        <div className="letterhead-body">
+          <aside className="letterhead-sidebar">
+            {doctors.map((doctor) => (
+              <div
+                key={doctor.id}
+                className={
+                  doctor.id === visit.doctor.id
+                    ? 'letterhead-sidebar-doctor letterhead-sidebar-doctor-assigned'
+                    : 'letterhead-sidebar-doctor'
+                }
+              >
+                <strong>{doctor.name}</strong>
+                {doctor.department && <div>{doctor.department}</div>}
+              </div>
+            ))}
+          </aside>
+
+          <div className="letterhead-content">
+            <div className="letterhead-patient-row">
+              <span>
+                Pt. Name: <strong>{visit.patient.name}</strong> ({visit.patient.patientCode})
+              </span>
+              <span>
+                Age/Sex: <strong>{visit.patient.age}/{visit.patient.gender}</strong>
+              </span>
+              <span>
+                Date: <strong>{visit.visitDate.toLocaleDateString()}</strong>
+              </span>
+              {visit.tokenNumber && (
+                <span>
+                  Token #: <strong>{visit.tokenNumber}</strong>
+                </span>
+              )}
+            </div>
+
+            {/* Deliberately blank -- the doctor hand-writes the diagnosis
+                and medicines here, then this same page is
+                photographed/scanned and uploaded through the existing
+                doctor prescription-upload flow. */}
+            <div className="prescription-writing-area" aria-hidden="true" />
+          </div>
+        </div>
+
+        <p className="letterhead-footer">DISCLAIMER: THE PRESCRIPTION IS VALID FOR 10 DAYS</p>
+      </div>
     </main>
   );
 }

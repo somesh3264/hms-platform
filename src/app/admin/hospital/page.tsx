@@ -53,6 +53,14 @@ export default async function HospitalSettingsPage({
             <input type="text" name="gstin" defaultValue={hospital.gstin ?? ''} />
           </label>
           <label>
+            Registration number
+            <input
+              type="text"
+              name="registrationNumber"
+              defaultValue={hospital.registrationNumber ?? ''}
+            />
+          </label>
+          <label>
             Theme color
             <input type="color" name="themeColor" defaultValue={hospital.themeColor ?? '#2563eb'} />
           </label>

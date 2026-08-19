@@ -42,6 +42,12 @@ model Hospital {
   contactPhone String?        @map("contact_phone")
   contactEmail String?        @map("contact_email")
   gstin        String?
+  // Clinical establishment registration number (e.g. a state health
+  // department registration, distinct from GSTIN) -- shown on the printed
+  // prescription form's letterhead (src/app/front-desk/prescription-form),
+  // a later, explicitly requested addition once the hospital's real
+  // letterhead photo showed it printed there.
+  registrationNumber String?  @map("registration_number")
   themeColor   String?        @map("theme_color")
   status       HospitalStatus @default(ACTIVE)
 

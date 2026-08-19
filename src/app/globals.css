@@ -358,10 +358,26 @@ main > header p {
   --color-accent-maroon: #8a3b3b;
 }
 
+/* Logo/title on the left, registration number on the right -- a later,
+   explicitly requested split once the hospital wanted its registration
+   number printed too (it sits in the letterhead photo's top-right corner). */
 .letterhead-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.letterhead-header-left {
   display: flex;
   align-items: flex-start;
   gap: 1.5rem;
+}
+
+.letterhead-registration {
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
 }
 
 .letterhead-logo {
@@ -373,33 +389,12 @@ main > header p {
   border-top: 2px solid var(--color-accent-maroon);
 }
 
-.letterhead-body {
-  display: flex;
-  gap: 1.5rem;
-}
-
-/* The real letterhead lists every doctor at the practice on every printed
-   sheet (a static roster), not just whoever this particular patient is
-   seeing -- staff reading the paper already know from context which one
-   applies. letterhead-sidebar-doctor-assigned bolds the one actually
-   assigned to this visit, the one addition beyond a literal copy, so the
-   printout itself is unambiguous when there's more than one doctor. */
-.letterhead-sidebar {
-  flex: 0 0 200px;
-  border-right: 2px solid var(--color-accent-maroon);
-  padding-right: 1.5rem;
-}
-
-.letterhead-sidebar-doctor {
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-}
-
-.letterhead-sidebar-doctor-assigned {
-  color: var(--color-text);
-}
-
+/* No sidebar/doctor-roster column -- an earlier version reproduced the real
+   letterhead's left sidebar listing every doctor at the practice, removed
+   at the hospital's explicit request since this practice has only the one
+   doctor and the sidebar's dividing border had nothing left to divide.
+   Doctor is now just another letterhead-patient-row field, same as
+   Pt. Name/Age-Sex/Date. */
 .letterhead-content {
   flex: 1;
 }
@@ -408,6 +403,7 @@ main > header p {
   display: flex;
   flex-wrap: wrap;
   gap: 1.5rem;
+  margin-top: 0.5rem;
 }
 
 .letterhead-footer {

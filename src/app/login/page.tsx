@@ -1,7 +1,5 @@
 import { resolveCurrentHospital } from '@/tenants';
 
-import { loginAction } from './actions';
-
 export default async function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
   const hospital = await resolveCurrentHospital();
 
@@ -31,7 +29,7 @@ export default async function LoginPage({ searchParams }: { searchParams: { erro
 
         {searchParams.error && <p className="alert alert-error">Invalid email or password.</p>}
 
-        <form action={loginAction} className="stacked-form">
+        <form action="/login/submit" method="post" className="stacked-form">
           <label>
             Email
             <input type="email" name="email" required autoComplete="username" />

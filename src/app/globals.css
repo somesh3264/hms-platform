@@ -433,13 +433,31 @@ main > section > article ul {
    src/app/front-desk/prescription-form/[visitId]) for the doctor to
    hand-write the diagnosis/medicines -- the hospital has no printer at the
    doctor's desk, so this page is printed in advance at the front desk and
-   physically carried in by the patient. A fixed min-height (not flexible
-   content) since there's nothing to size it to -- it's deliberately empty. */
+   physically carried in by the patient. Grows to fill whatever's left of
+   the page down to the disclaimer (a later, explicitly requested change
+   from a small fixed-height box that left most of the page empty below
+   it) via the flex chain on .prescription-form-page/.letterhead/
+   .letterhead-content below; min-height is now just a floor for short
+   viewports/pages, not the actual sizing mechanism. */
 .prescription-writing-area {
-  min-height: 380px;
+  flex: 1;
+  min-height: 200px;
   margin-top: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;
+}
+
+/* Makes the printed prescription's writing area grow all the way down to
+   the disclaimer (see .prescription-writing-area) instead of leaving most
+   of the page blank below a small fixed-height box. Scoped to this one
+   page's <main> (not a blanket main rule -- every other page in the app
+   uses the same <main> element) via min-height: 100vh, which in print
+   media maps to one physical page's height, the same page-relative sizing
+   this stylesheet already leans on for @page/body print margins above. */
+.prescription-form-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 /* Front desk's printed prescription form, modeled directly on a photo of
@@ -450,6 +468,9 @@ main > section > article ul {
    theme-wide token. */
 .letterhead {
   --color-accent-maroon: #8a3b3b;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 /* Logo/title on the left, registration number on the right -- a later,
@@ -488,8 +509,14 @@ main > section > article ul {
    at the hospital's explicit request since this practice has only the one
    doctor and the sidebar's dividing border had nothing left to divide.
    Doctor is now just another letterhead-patient-row field, same as
-   Pt. Name/Age-Sex/Date. */
+   Pt. Name/Age-Sex/Date. flex: 1 grows this to fill .letterhead's space
+   left over after the header/rule (letterhead-footer is its sibling, not
+   part of this); display: flex/column is what lets its own
+   .prescription-writing-area child in turn grow to fill what's left after
+   the patient-info rows. */
 .letterhead-content {
+  display: flex;
+  flex-direction: column;
   flex: 1;
 }
 

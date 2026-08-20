@@ -74,7 +74,7 @@ export default async function PrescriptionFormPage({
   ]);
 
   return (
-    <main>
+    <main className="prescription-form-page">
       <div className="no-print">
         <PrintButton />
       </div>

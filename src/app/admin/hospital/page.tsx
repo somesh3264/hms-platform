@@ -49,6 +49,10 @@ export default async function HospitalSettingsPage({
             <input type="email" name="contactEmail" defaultValue={hospital.contactEmail ?? ''} />
           </label>
           <label>
+            Website
+            <input type="text" name="website" defaultValue={hospital.website ?? ''} />
+          </label>
+          <label>
             GSTIN
             <input type="text" name="gstin" defaultValue={hospital.gstin ?? ''} />
           </label>

@@ -48,6 +48,7 @@ export async function updateHospitalBrandingAction(formData: FormData): Promise<
         address: optionalString(formData, 'address'),
         contactPhone: optionalString(formData, 'contactPhone'),
         contactEmail: optionalString(formData, 'contactEmail'),
+        website: optionalString(formData, 'website'),
         gstin: optionalString(formData, 'gstin'),
         registrationNumber: optionalString(formData, 'registrationNumber'),
         themeColor: optionalString(formData, 'themeColor'),

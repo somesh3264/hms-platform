@@ -11,7 +11,14 @@ export async function getBillDetail(
     include: {
       hospital: true,
       patient: true,
-      visit: { select: { id: true, visitDate: true, department: true } },
+      visit: {
+        select: {
+          id: true,
+          visitDate: true,
+          department: true,
+          doctor: { select: { name: true } },
+        },
+      },
       lineItems: { orderBy: { createdAt: 'asc' } },
     },
   });

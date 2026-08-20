@@ -5,7 +5,6 @@ import { requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { PrintButton } from '@/app/components/PrintButton';
-import { StatusBadge } from '@/app/components/StatusBadge';
 import { UpiQrCode } from '@/app/components/UpiQrCode';
 
 import { recordPaymentAction } from './actions';
@@ -33,6 +32,10 @@ export async function generateMetadata({
   return { title: `${bill.patient.name} (${bill.patient.patientCode}) - Bill ${bill.billNumber}` };
 }
 
+function formatRupees(cents: number): string {
+  return `${(cents / 100).toFixed(2)} INR`;
+}
+
 // Printable via the browser's native print (Ctrl/Cmd+P, or the explicit
 // PrintButton below) -- no PDF library dependency. @media print hides
 // the payment form/nav/button so what prints is just the invoice,
@@ -40,6 +43,16 @@ export async function generateMetadata({
 // server-side PDF generation, which the TRD calls for but isn't built here;
 // "download" is the browser's own print dialog's "Save as PDF" destination,
 // not a separately generated file.
+//
+// Layout modeled on a reference invoice format the hospital provided (a
+// later, explicitly requested change from the original simpler dl/table
+// layout): a two-column header (branding on the left, contact/registration
+// on the right), a two-column patient block, a "By: Dr. X" line, the line
+// items table, and a totals block reporting Amount Received/Balance Amount
+// rather than just a payment-status badge. GSTIN isn't part of the
+// reference format but already exists as real hospital data (FR-7.6 calls
+// for it on the printable bill) -- kept in the header's right column rather
+// than silently dropped.
 export default async function BillDetailPage({
   params,
   searchParams,
@@ -57,94 +70,163 @@ export default async function BillDetailPage({
     getBillDetail(tx, { hospitalId, billId: params.billId }),
   );
 
+  const isPaid = bill.paymentStatus === 'PAID';
+
   return (
     <main>
-      <header>
-        {/* Plain <img>, not next/image -- see the pharmacy dispensing page
-            for the same rationale (local dev-only storage, arbitrary source). */}
-        {bill.hospital.logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={bill.hospital.logoUrl} alt={bill.hospital.name} style={{ maxHeight: '80px' }} />
-        )}
-        <h1>{bill.hospital.name}</h1>
-        {bill.hospital.address && <p>{bill.hospital.address}</p>}
-        {bill.hospital.gstin && <p>GSTIN: {bill.hospital.gstin}</p>}
-      </header>
-
       <div className="no-print">
         <FlashMessage success={searchParams.success} error={searchParams.error} />
         <PrintButton />
       </div>
 
-      <section>
-        <h2>Invoice {bill.billNumber}</h2>
-        <dl>
-          <dt>Patient</dt>
-          <dd>
-            {bill.patient.name} ({bill.patient.patientCode})
-          </dd>
-          <dt>Visit date</dt>
-          <dd>{bill.visit.visitDate.toLocaleDateString()}</dd>
-          <dt>Issued</dt>
-          <dd>{bill.issuedAt?.toLocaleString() ?? '—'}</dd>
-          <dt>Status</dt>
-          <dd>
-            <StatusBadge status={bill.paymentStatus} />
-          </dd>
-        </dl>
+      <div className="invoice">
+        <div className="invoice-header">
+          <div className="invoice-header-left">
+            {/* Plain <img>, not next/image -- see the pharmacy dispensing
+                page for the same rationale (local dev-only storage,
+                arbitrary source). */}
+            {bill.hospital.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={bill.hospital.logoUrl}
+                alt={bill.hospital.name}
+                className="invoice-logo"
+              />
+            )}
+            <div>
+              <h1>{bill.hospital.name}</h1>
+              {bill.hospital.address && <p>{bill.hospital.address}</p>}
+              {bill.hospital.website && <p>{bill.hospital.website}</p>}
+            </div>
+          </div>
+          <div className="invoice-header-right">
+            {bill.hospital.contactPhone && <p>Contact No. {bill.hospital.contactPhone}</p>}
+            {bill.hospital.registrationNumber && <p>Reg.no. {bill.hospital.registrationNumber}</p>}
+            {bill.hospital.gstin && <p>GSTIN: {bill.hospital.gstin}</p>}
+          </div>
+        </div>
 
-        <table>
+        <hr className="invoice-rule" />
+
+        <div className="invoice-header">
+          <div>
+            <p className="invoice-patient-name">{bill.patient.name}</p>
+            <p>Patient Id: {bill.patient.patientCode}</p>
+            {bill.patient.phone && <p>{bill.patient.phone}</p>}
+            {bill.patient.email && <p>{bill.patient.email}</p>}
+          </div>
+          <div className="invoice-header-right">
+            <p>
+              {bill.patient.gender}, {bill.patient.age} years
+            </p>
+            {bill.patient.address && <p>{bill.patient.address}</p>}
+          </div>
+        </div>
+
+        <hr className="invoice-rule" />
+
+        {bill.visit.doctor && (
+          <p>
+            By: <strong>{bill.visit.doctor.name}</strong>
+          </p>
+        )}
+
+        <div className="invoice-header">
+          <h2 className="invoice-title">Invoice</h2>
+          <div className="invoice-header-right">
+            <p>
+              Date: <strong>{(bill.issuedAt ?? bill.createdAt).toLocaleDateString()}</strong>
+            </p>
+            <p>
+              Invoice Number: <strong>{bill.billNumber}</strong>
+            </p>
+          </div>
+        </div>
+
+        <table className="invoice-table">
           <thead>
             <tr>
-              <th>Description</th>
-              <th>Quantity</th>
-              <th>Unit price</th>
-              <th>Total</th>
+              <th>#</th>
+              <th>Treatments &amp; Products</th>
+              <th>Unit Cost INR</th>
+              <th>Qty</th>
+              <th>Total Cost INR</th>
             </tr>
           </thead>
           <tbody>
-            {bill.lineItems.map((item) => (
+            {bill.lineItems.map((item, index) => (
               <tr key={item.id}>
-                <td>{item.description}</td>
+                <td>{index + 1}.</td>
+                <td>
+                  {item.description}
+                  <div className="invoice-item-date">Date {item.createdAt.toLocaleDateString()}</div>
+                </td>
+                <td>{(item.unitPriceCents / 100).toFixed(2)}</td>
                 <td>{item.quantity}</td>
-                <td>₹{(item.unitPriceCents / 100).toFixed(2)}</td>
-                <td>₹{(item.lineTotalCents / 100).toFixed(2)}</td>
+                <td>{(item.lineTotalCents / 100).toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <dl>
-          <dt>Subtotal</dt>
-          <dd>₹{(bill.subtotalCents / 100).toFixed(2)}</dd>
-          {bill.discountCents > 0 && (
-            <>
-              <dt>Discount</dt>
-              <dd>-₹{(bill.discountCents / 100).toFixed(2)}</dd>
-            </>
+        <div className="invoice-summary">
+          {isPaid && (
+            <div className="invoice-payment-details">
+              <h3>Payment Details</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Receipt Number</th>
+                    <th>Mode Of Payment</th>
+                    <th>Amount Paid INR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{bill.paidAt?.toLocaleDateString()}</td>
+                    {/* paymentReference (UPI UTR / a cash receipt note) is
+                        optional and often left blank at payment time --
+                        falls back to the bill's own invoice number, which
+                        always exists, rather than showing nothing. */}
+                    <td>{bill.paymentReference || bill.billNumber}</td>
+                    <td>{bill.paymentMethod}</td>
+                    <td>{(bill.totalCents / 100).toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           )}
-          <dt>Tax</dt>
-          <dd>₹{(bill.taxCents / 100).toFixed(2)}</dd>
-          <dt>
-            <strong>Total</strong>
-          </dt>
-          <dd>
-            <strong>₹{(bill.totalCents / 100).toFixed(2)}</strong>
-          </dd>
-        </dl>
 
-        {bill.paymentStatus === 'PAID' && (
-          <p>
-            Paid via {bill.paymentMethod} on {bill.paidAt?.toLocaleString()}
-            {bill.paymentReference && ` (ref: ${bill.paymentReference})`}
-          </p>
-        )}
+          <dl className="invoice-totals">
+            <dt>Total Cost:</dt>
+            <dd>{formatRupees(bill.subtotalCents)}</dd>
+            {bill.discountCents > 0 && (
+              <>
+                <dt>Discount:</dt>
+                <dd>-{formatRupees(bill.discountCents)}</dd>
+              </>
+            )}
+            {bill.taxCents > 0 && (
+              <>
+                <dt>Tax:</dt>
+                <dd>{formatRupees(bill.taxCents)}</dd>
+              </>
+            )}
+            <dt>Grand Total:</dt>
+            <dd>{formatRupees(bill.totalCents)}</dd>
+            <dt>Amount Received:</dt>
+            <dd>{formatRupees(isPaid ? bill.totalCents : 0)}</dd>
+            <dt>Balance Amount:</dt>
+            <dd>{formatRupees(isPaid ? 0 : bill.totalCents)}</dd>
+          </dl>
+        </div>
 
         {/* Part of the printable invoice itself (not .no-print) -- a later,
             explicitly requested addition so both the on-screen and printed
             copy carry the same reassurance. */}
         <p className="print-footer-note">This bill is digitally generated, seal is not required.</p>
-      </section>
+      </div>
 
       {bill.paymentStatus === 'PENDING' && role === 'PHARMACIST' && (
         <section className="no-print">

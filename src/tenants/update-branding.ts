@@ -16,6 +16,7 @@ export interface UpdateHospitalBrandingInput {
   address?: string;
   contactPhone?: string;
   contactEmail?: string;
+  website?: string;
   gstin?: string;
   registrationNumber?: string;
   themeColor?: string;
@@ -34,6 +35,7 @@ export async function updateHospitalBranding(
       address: input.address ?? null,
       contactPhone: input.contactPhone ?? null,
       contactEmail: input.contactEmail ?? null,
+      website: input.website ?? null,
       gstin: input.gstin ?? null,
       registrationNumber: input.registrationNumber ?? null,
       themeColor: input.themeColor ?? null,

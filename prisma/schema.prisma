@@ -41,6 +41,10 @@ model Hospital {
   address      String?
   contactPhone String?        @map("contact_phone")
   contactEmail String?        @map("contact_email")
+  // Shown on the printable bill's letterhead (src/app/billing/[billId]) --
+  // a later, explicitly requested addition once the hospital gave a
+  // reference bill format that includes it.
+  website      String?
   gstin        String?
   // Clinical establishment registration number (e.g. a state health
   // department registration, distinct from GSTIN) -- shown on the printed

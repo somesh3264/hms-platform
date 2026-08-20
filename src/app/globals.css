@@ -268,20 +268,6 @@ main > section > article ul {
   padding-left: 1.25rem;
 }
 
-/* Printable bill letterhead (src/app/billing/[billId]/page.tsx) */
-main > header {
-  text-align: center;
-  padding-bottom: 1.5rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-main > header p {
-  margin: 0.15rem 0;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-}
-
 /* Status badges (src/app/components/StatusBadge.tsx) */
 .badge {
   display: inline-block;
@@ -333,6 +319,114 @@ main > header p {
   margin-top: 2rem;
   font-size: 0.8rem;
   color: var(--color-text-muted);
+}
+
+/* Printable bill (src/app/billing/[billId]), modeled on a reference
+   invoice format the hospital provided -- see that page for the full
+   reasoning. Reuses the same two-column "branding left, detail right"
+   header shape as the prescription-form letterhead
+   (.letterhead-header-left) but as its own class since this page has no
+   dependency on that one and the two are free to diverge. */
+
+/* The header/patient blocks are each several separate <p> lines (address,
+   phone, email, ...) -- with no reset they fall back to the browser's
+   default ~1em paragraph margin, which reads fine on screen but stacks up
+   fast into genuinely wasted height once printed (a later, explicitly
+   reported bug: a one-line-item bill was overflowing onto a second
+   printed page). Tight, single-purpose line spacing instead. */
+.invoice p {
+  margin: 0.2rem 0;
+}
+
+.invoice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.invoice-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.invoice-header-right {
+  text-align: right;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.invoice-logo {
+  max-height: 80px;
+}
+
+.invoice-rule {
+  margin: 1rem 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.invoice-patient-name {
+  font-weight: 600;
+}
+
+.invoice-title {
+  color: var(--color-success-text);
+  margin: 0;
+}
+
+.invoice-table th {
+  text-align: left;
+  background: var(--color-surface);
+}
+
+.invoice-table td:nth-child(3),
+.invoice-table td:nth-child(4),
+.invoice-table td:nth-child(5),
+.invoice-table th:nth-child(3),
+.invoice-table th:nth-child(4),
+.invoice-table th:nth-child(5) {
+  text-align: right;
+}
+
+.invoice-item-date {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* Payment Details (left) and the totals block (right), side by side below
+   the line items -- matches the reference format's layout instead of
+   stacking both full-width. */
+.invoice-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.invoice-payment-details table {
+  margin-top: 0.5rem;
+}
+
+.invoice-totals {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.25rem 1rem;
+  margin-left: auto;
+}
+
+.invoice-totals dt {
+  color: var(--color-text-muted);
+}
+
+.invoice-totals dd {
+  text-align: right;
+  font-weight: 600;
 }
 
 /* Blank space on the front desk's printed prescription form (see
@@ -592,6 +686,36 @@ main > header p {
   main > section {
     border: none;
     box-shadow: none;
+    padding: 0;
+  }
+
+  /* Suppresses the browser's own print header/footer (page URL, title,
+     date, page number) -- a later, explicitly requested fix. Those are
+     rendered inside the page's margin box, so with no margin there's
+     nowhere for the browser to draw them; body's own margin below
+     restores equivalent whitespace around the printed content so it
+     doesn't run edge-to-edge on the physical page. */
+  @page {
+    margin: 0;
+  }
+
+  body {
+    margin: 12mm;
+  }
+
+  /* main's on-screen padding (2rem/1.5rem/3rem, meant for comfortable
+     screen viewing) was stacking on top of body's own print margin above,
+     wasting real page space -- part of the same "one-line-item bill
+     overflowing to a second page" fix as .invoice p above. font-size
+     scales every rem-based margin/gap/type size throughout this
+     stylesheet down together, since almost all of it is rem-based --
+     print doesn't need on-screen-comfortable sizing. */
+  html {
+    font-size: 13px;
+  }
+
+  main {
+    max-width: none;
     padding: 0;
   }
 }

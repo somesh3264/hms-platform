@@ -3,18 +3,22 @@ import Link from 'next/link';
 import { requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
+import { StatusBadge } from '@/app/components/StatusBadge';
 
-// Landing spot after any front-desk action that leaves a visit ready for
-// its doctor (registering with a doctor assigned, "Create visit", or
-// collecting a deferred consultation fee from the waiting queue) -- a
-// later, explicitly requested change from redirecting straight back to
-// /front-desk, so front desk can print what this visit needs right away
-// instead of hunting for it in the waiting queue afterwards. Two possible
-// documents, not always both: the consultation fee bill only if a fee was
-// actually collected (a WAITING visit can only ever have a Bill from that
-// step, see src/visits/queue.ts's listWaitingQueue), and the prescription
-// form always, since reaching this page at all means a doctor was already
-// assigned.
+// What's printable for one visit -- consultation fee bill, any other
+// front-desk charges (surgery/procedure), and the prescription form, all in
+// one place. Originally just the landing spot right after registering/
+// collecting a fee (a later, explicitly requested change from redirecting
+// straight back to /front-desk, so front desk could print immediately
+// instead of hunting for it afterwards); now also the target of a
+// dedicated "Bills" link from the waiting queue and "Completed today"
+// (another later, explicitly requested addition -- previously there was no
+// way back to a bill once its row stopped showing the fee-collection form,
+// so a missed print had no recovery short of searching the patient's own
+// record). Every bill on the visit is listed generically (number/total/
+// status), not just a single assumed "the" consultation-fee one, since a
+// visit can carry several (consultation fee, one or more front-desk
+// charges, and -- once completed -- a pharmacy medicine bill too).
 export default async function VisitCreatedPage({
   params,
   searchParams,
@@ -32,7 +36,10 @@ export default async function VisitCreatedPage({
         tokenNumber: true,
         patient: { select: { name: true, patientCode: true } },
         doctor: { select: { name: true } },
-        bills: { where: { paymentStatus: 'PAID' }, select: { id: true } },
+        bills: {
+          select: { id: true, billNumber: true, totalCents: true, paymentStatus: true },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     }),
   );
@@ -52,11 +59,14 @@ export default async function VisitCreatedPage({
       <section>
         <h2>Print for this visit</h2>
         <ul>
-          {visit.bills[0] && (
-            <li>
-              <Link href={`/billing/${visit.bills[0].id}`}>Print consultation fee bill</Link>
+          {visit.bills.map((bill) => (
+            <li key={bill.id}>
+              <Link href={`/billing/${bill.id}`}>
+                Print bill {bill.billNumber} (₹{(bill.totalCents / 100).toFixed(2)})
+              </Link>{' '}
+              <StatusBadge status={bill.paymentStatus} />
             </li>
-          )}
+          ))}
           <li>
             <Link href={`/front-desk/prescription-form/${visit.id}`}>Print prescription form</Link>
           </li>

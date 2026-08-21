@@ -59,6 +59,12 @@ export async function listRecentlyCompletedVisits(
     include: {
       patient: { select: { id: true, patientCode: true, name: true } },
       doctor: { select: { id: true, name: true } },
+      // Lets the page show a reprint link without a per-row extra query --
+      // unfiltered by paymentStatus (unlike listWaitingQueue's bills
+      // select above), since a completed visit can also carry a
+      // pharmacy-billed medicine Bill that's still PENDING, and front desk
+      // should still be able to reach it to view/print.
+      bills: { select: { id: true } },
     },
   });
 }

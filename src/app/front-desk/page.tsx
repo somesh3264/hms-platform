@@ -257,13 +257,14 @@ export default async function FrontDeskPage({
               <th>Since</th>
               <th>Consultation fee</th>
               <th>Other charges</th>
+              <th>Bills</th>
               <th>Prescription form</th>
             </tr>
           </thead>
           <tbody>
             {queue.length === 0 && (
               <tr>
-                <td colSpan={7}>No patients waiting.</td>
+                <td colSpan={8}>No patients waiting.</td>
               </tr>
             )}
             {queue.map((visit) => (
@@ -287,6 +288,21 @@ export default async function FrontDeskPage({
                 </td>
                 <td>
                   <Link href={`/front-desk/bill/${visit.id}`}>Bill for surgery/procedure</Link>
+                </td>
+                <td>
+                  {/* One link to reprint whatever's already been generated
+                      for this visit -- consultation fee bill and/or any
+                      surgery/procedure charges -- for when it wasn't
+                      printed at the time (a later, explicitly requested
+                      fix: neither the PAID badge above nor the
+                      "Bill for surgery/procedure" link, which only ever
+                      opens the form to add a *new* charge, offered any way
+                      back to a bill already generated). */}
+                  {visit.bills.length > 0 ? (
+                    <Link href={`/front-desk/visit/${visit.id}`}>Print</Link>
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td>
                   {/* Reprint access for a visit already past registration --
@@ -314,6 +330,7 @@ export default async function FrontDeskPage({
                 <th>Doctor</th>
                 <th>Completed</th>
                 <th></th>
+                <th>Bills</th>
               </tr>
             </thead>
             <tbody>
@@ -327,6 +344,13 @@ export default async function FrontDeskPage({
                   <td>{visit.updatedAt.toLocaleString()}</td>
                   <td>
                     <Link href={`/front-desk/bill/${visit.id}`}>Bill for surgery/procedure</Link>
+                  </td>
+                  <td>
+                    {visit.bills.length > 0 ? (
+                      <Link href={`/front-desk/visit/${visit.id}`}>Print</Link>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                 </tr>
               ))}

@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { registerPatient } from '@/patients';
@@ -55,6 +56,19 @@ export async function registerCounterSaleBuyerAction(formData: FormData): Promis
       error: err instanceof Error ? err.message : 'Failed to register patient.',
     });
   }
+
+  // Without this, Next's Router Cache can keep serving the stale
+  // pre-registration search results (0 matches) for these routes if
+  // someone navigates back to them client-side within the cache's
+  // staleTime -- a newly registered patient would look "not searchable"
+  // even though the row exists. Front desk's own registration action
+  // happens to dodge this because it always redirects back to a route it
+  // came from (which gets a fresh render as part of that same redirect);
+  // this one redirects to a different page, so it needs the explicit
+  // invalidation front-desk's flow doesn't.
+  revalidatePath('/pharmacy/counter-sale');
+  revalidatePath('/front-desk');
+  revalidatePath('/patients');
 
   redirect(`/pharmacy/counter-sale/${patientId}`);
 }

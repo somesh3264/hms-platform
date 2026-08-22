@@ -311,8 +311,13 @@ model Bill {
   id         String   @id @default(cuid())
   hospitalId String   @map("hospital_id")
   hospital   Hospital @relation(fields: [hospitalId], references: [id])
-  visitId    String   @map("visit_id")
-  visit      Visit    @relation(fields: [visitId], references: [id])
+  // Nullable: a Counter Sale (src/billing/counter-sale.ts, a walk-in
+  // medicine purchase with no doctor consultation involved) has no Visit
+  // to attach to. Every other Bill still always has one -- this only
+  // widens what's *possible*, nothing about the existing front-desk/
+  // pharmacist billing flows changes.
+  visitId    String?  @map("visit_id")
+  visit      Visit?   @relation(fields: [visitId], references: [id])
   patientId  String   @map("patient_id")
   patient    Patient  @relation(fields: [patientId], references: [id])
 

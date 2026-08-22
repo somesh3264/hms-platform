@@ -148,7 +148,12 @@ export default async function BillDetailPage({
 
         <hr className="invoice-rule" />
 
-        {!isMedicineBill && bill.visit.doctor && (
+        {/* bill.visit is only ever null for a Counter Sale
+            (src/billing/counter-sale.ts), which is always a medicine bill
+            (isMedicineBill true) -- the explicit bill.visit check here is
+            for TypeScript's benefit as much as runtime safety, since it
+            can't infer that correlation from isMedicineBill alone. */}
+        {!isMedicineBill && bill.visit?.doctor && (
           <p>
             By: <strong>{bill.visit.doctor.name}</strong>
           </p>

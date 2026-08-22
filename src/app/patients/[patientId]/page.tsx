@@ -11,7 +11,7 @@ import { StatusBadge } from '@/app/components/StatusBadge';
 export default async function PatientRecordPage({ params }: { params: { patientId: string } }) {
   const { hospitalId } = await requireSession();
 
-  const { patient, visits } = await withHospitalContext(hospitalId, (tx) =>
+  const { patient, visits, otherBills } = await withHospitalContext(hospitalId, (tx) =>
     getPatientHistory(tx, { hospitalId, patientId: params.patientId }),
   );
 
@@ -83,6 +83,27 @@ export default async function PatientRecordPage({ params }: { params: { patientI
           ))
         )}
       </section>
+
+      {/* Counter Sale bills (src/billing/counter-sale.ts) -- a walk-in
+          medicine purchase with no doctor consultation, so there's no
+          Visit for it to show up under above. Only rendered when there are
+          any, so a patient who's never had a counter sale sees no change
+          to this page at all. */}
+      {otherBills.length > 0 && (
+        <section>
+          <h2>Other bills</h2>
+          <p>Medicine purchased directly at the counter, not tied to a doctor visit.</p>
+          <ul>
+            {otherBills.map((bill) => (
+              <li key={bill.id}>
+                {bill.billNumber} — ₹{(bill.totalCents / 100).toFixed(2)} —{' '}
+                <StatusBadge status={bill.paymentStatus} /> —{' '}
+                <Link href={`/billing/${bill.id}`}>View bill</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }

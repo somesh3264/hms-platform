@@ -29,6 +29,7 @@ const ROLE_LINKS: Record<UserRole, { href: string; label: string }[]> = {
   // links, not a different role's.
   PHARMACIST: [
     { href: '/pharmacy', label: 'Pharmacy Queue' },
+    { href: '/pharmacy/counter-sale', label: 'Counter Sale' },
     { href: '/pharmacy/inventory', label: 'Inventory' },
     { href: '/billing', label: 'Billing' },
   ],

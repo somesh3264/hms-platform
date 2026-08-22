@@ -93,6 +93,20 @@ export default async function DispensePrescriptionPage({
 
       {prescription.status === 'UPLOADED' && (
         <>
+          {/* Moved above the medicine catalog (a later, explicitly
+              requested change) -- with a full inventory list below it,
+              this button was sitting at the very bottom of the page, off
+              screen until the pharmacist scrolled past everything else. */}
+          <section>
+            <form action={finalizeDispensingAction}>
+              <input type="hidden" name="prescriptionId" value={prescription.id} />
+              <input type="hidden" name="visitId" value={prescription.visit.id} />
+              <button type="submit" disabled={prescription.billLineItems.length === 0}>
+                Finalize dispensing &amp; bill
+              </button>
+            </form>
+          </section>
+
           <section>
             <h2>Dispense a medicine</h2>
             <form method="get">
@@ -149,16 +163,6 @@ export default async function DispensePrescriptionPage({
                 ))}
               </tbody>
             </table>
-          </section>
-
-          <section>
-            <form action={finalizeDispensingAction}>
-              <input type="hidden" name="prescriptionId" value={prescription.id} />
-              <input type="hidden" name="visitId" value={prescription.visit.id} />
-              <button type="submit" disabled={prescription.billLineItems.length === 0}>
-                Finalize dispensing &amp; bill
-              </button>
-            </form>
           </section>
         </>
       )}

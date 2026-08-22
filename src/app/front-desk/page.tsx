@@ -17,15 +17,27 @@ import { UpiQrCode } from '@/app/components/UpiQrCode';
 
 import { collectConsultationFeeAction, createVisitAction, registerPatientAction } from './actions';
 
-// The primary doctor (User.isPrimaryDoctor, see prisma/schema.prisma) shows
-// as "Shivgeet hospital" in every doctor-picking dropdown instead of his own
-// name -- a later, explicitly requested addition: he sees essentially every
-// patient first (before any referral to a specialist), so front desk
-// doesn't need to know/pick his name specifically, just that the patient is
-// seeing "the hospital." Client-specific literal wording, not derived from
+// The primary doctor (User.isPrimaryDoctor, see prisma/schema.prisma) gets
+// an *additional* "Shivgeet hospital" entry in every doctor-picking
+// dropdown, alongside his own name -- a later, explicitly requested
+// addition: he sees essentially every patient first (before any referral to
+// a specialist), so front desk doesn't need to know/pick his name
+// specifically for the common case, but can still pick him by name directly
+// too. Both options carry the same doctorId value -- a visit booked either
+// way is identical underneath and shows up in his own queue the same way;
+// only the label differs. Client-specific literal wording, not derived from
 // Hospital.name.
-function doctorLabel(doctor: { name: string; isPrimaryDoctor: boolean }): string {
-  return doctor.isPrimaryDoctor ? 'Shivgeet hospital' : doctor.name;
+function doctorOptions(
+  doctors: { id: string; name: string; isPrimaryDoctor: boolean }[],
+): { key: string; value: string; label: string }[] {
+  return doctors.flatMap((doctor) =>
+    doctor.isPrimaryDoctor
+      ? [
+          { key: `${doctor.id}-hospital`, value: doctor.id, label: 'Shivgeet hospital' },
+          { key: doctor.id, value: doctor.id, label: doctor.name },
+        ]
+      : [{ key: doctor.id, value: doctor.id, label: doctor.name }],
+  );
 }
 
 // Shared by every place the consultation fee is collected (walk-in
@@ -160,9 +172,9 @@ export default async function FrontDeskPage({
                       <input type="hidden" name="q" value={query} />
                       <select name="doctorId" required>
                         <option value="">Assign doctor…</option>
-                        {doctors.map((doctor) => (
-                          <option key={doctor.id} value={doctor.id}>
-                            {doctorLabel(doctor)}
+                        {doctorOptions(doctors).map((opt) => (
+                          <option key={opt.key} value={opt.value}>
+                            {opt.label}
                           </option>
                         ))}
                       </select>
@@ -235,9 +247,9 @@ export default async function FrontDeskPage({
             Assign doctor
             <select name="doctorId" defaultValue="">
               <option value="">No appointment yet</option>
-              {doctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctorLabel(doctor)}
+              {doctorOptions(doctors).map((opt) => (
+                <option key={opt.key} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>

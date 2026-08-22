@@ -122,19 +122,20 @@ model User {
   department      String?
   isActive        Boolean  @default(true) @map("is_active")
   // Marks the one doctor who sees a patient first, before any referral to a
-  // specialist -- front desk's "Assign doctor" dropdown shows this doctor
-  // as "Shivgeet hospital" instead of their own name (a later, explicitly
-  // requested addition, client-specific wording, not derived from
-  // Hospital.name), since front desk/patients think of seeing "the
-  // hospital" rather than needing to know a specific doctor's name up
-  // front. An explicit flag, not inferred from e.g. "oldest doctor
-  // account" -- this codebase already replaced exactly that kind of
-  // implicit shortcut once for hospital resolution (see
-  // resolveCurrentHospitalId's removed "oldest ACTIVE hospital" fallback)
-  // after flagging it as a silent-wrong-tenant risk; the same reasoning
-  // applies here; not DB-enforced as at-most-one-per-hospital (no unique
-  // partial index), same as other soft invariants in this codebase --
-  // keep it that way when setting it.
+  // specialist -- front desk's "Assign doctor" dropdown gets an *additional*
+  // "Shivgeet hospital" entry alongside this doctor's own name (a later,
+  // explicitly requested addition, client-specific wording, not derived
+  // from Hospital.name) -- both options assign the same real doctorId
+  // underneath, so a visit booked either way lands in this doctor's own
+  // queue exactly the same; front desk just doesn't need to know/pick his
+  // name specifically for the common case. An explicit flag, not inferred
+  // from e.g. "oldest doctor account" -- this codebase already replaced
+  // exactly that kind of implicit shortcut once for hospital resolution
+  // (see resolveCurrentHospitalId's removed "oldest ACTIVE hospital"
+  // fallback) after flagging it as a silent-wrong-tenant risk; the same
+  // reasoning applies here; not DB-enforced as at-most-one-per-hospital (no
+  // unique partial index), same as other soft invariants in this codebase
+  // -- keep it that way when setting it.
   isPrimaryDoctor Boolean  @default(false) @map("is_primary_doctor")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")

@@ -433,16 +433,25 @@ main > section > article ul {
    src/app/front-desk/prescription-form/[visitId]) for the doctor to
    hand-write the diagnosis/medicines -- the hospital has no printer at the
    doctor's desk, so this page is printed in advance at the front desk and
-   physically carried in by the patient. Grows to fill whatever's left of
-   the page down to the disclaimer (a later, explicitly requested change
-   from a small fixed-height box that left most of the page empty below
-   it) via the flex chain on .prescription-form-page/.letterhead/
-   .letterhead-content below; min-height is now just a floor for short
-   viewports/pages, not the actual sizing mechanism. */
+   physically carried in by the patient.
+   min-height: 190mm (not the flex: 1 growth below) is what actually fills
+   most of the page -- flex: 1 plus a min-height:100vh ancestor looked
+   right in a resized-browser-window emulation, but a real "Print /
+   Download PDF" output from production showed a large blank gap below the
+   disclaimer, proving flexbox filling remaining space doesn't reliably
+   carry through Chrome's actual print pagination the way it does in a
+   normal browser window. mm is a physical, print-native unit (unlike vh,
+   whose meaning in a paginated print context turned out to be exactly the
+   unreliable part here), sized generously against A4's 297mm height minus
+   the ~24mm page margin and the header/sidebar/footer's own space, with a
+   margin of safety kept well short of the true maximum so a taller header
+   (e.g. a longer address) doesn't push this back onto a second page. flex:
+   1 is kept as a harmless bonus for on-screen viewing on very tall
+   windows; it is not load-bearing for print any more. */
 .prescription-writing-area {
   position: relative;
   flex: 1;
-  min-height: 200px;
+  min-height: 190mm;
   margin-top: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;
@@ -468,13 +477,12 @@ main > section > article ul {
   pointer-events: none;
 }
 
-/* Makes the printed prescription's writing area grow all the way down to
-   the disclaimer (see .prescription-writing-area) instead of leaving most
-   of the page blank below a small fixed-height box. Scoped to this one
-   page's <main> (not a blanket main rule -- every other page in the app
-   uses the same <main> element) via min-height: 100vh, which in print
-   media maps to one physical page's height, the same page-relative sizing
-   this stylesheet already leans on for @page/body print margins above. */
+/* min-height: 100vh here is only for a nicer on-screen look on tall
+   windows -- .prescription-writing-area's own min-height: 190mm is what
+   actually fills the printed page now (see that rule for why the flex-fill
+   approach this used to rely on was dropped for print). Scoped to this one
+   page's <main>, not a blanket main rule -- every other page in the app
+   uses the same <main> element. */
 .prescription-form-page {
   display: flex;
   flex-direction: column;
@@ -558,9 +566,11 @@ main > section > article ul {
   color: var(--color-text-muted);
 }
 
-/* display: flex/column is what lets its own .prescription-writing-area
-   child grow to fill what's left after the patient-info rows; flex: 1
-   grows this to fill .letterhead-body's row alongside the sidebar. */
+/* On-screen only now (see .prescription-writing-area's own min-height for
+   what actually sizes it in print): display: flex/column lets its
+   .prescription-writing-area child grow to fill what's left after the
+   patient-info rows; flex: 1 grows this to fill .letterhead-body's row
+   alongside the sidebar. */
 .letterhead-content {
   display: flex;
   flex-direction: column;
@@ -791,25 +801,5 @@ main > section > article ul {
   main {
     max-width: none;
     padding: 0;
-  }
-
-  /* .prescription-form-page's min-height: 100vh (below) claims the full
-     page height for itself, but it's *also* inset by body's own 12mm
-     margin above -- min-height:100vh plus a 12mm top offset pushes its
-     bottom edge 12mm past the page, and body still needs its own 12mm
-     bottom margin on top of that, so the real available height is
-     100vh minus both margins, not 100vh alone. Print-only override since
-     screen has no such body margin to account for -- a later, explicitly
-     reported bug: a prescription with all three doctors in the sidebar
-     (taller than the single-doctor case this was first verified against)
-     was overflowing onto a second page by exactly this gap.
-     30mm (not the exact 24mm) is deliberate headroom: an emulated-viewport
-     test matched the exact 24mm figure to within a pixel, but real browser
-     print pagination rounds slightly differently, and on production this
-     was just enough to tip the disclaimer line alone onto an otherwise
-     blank second page. The extra ~6mm keeps a real safety margin instead
-     of targeting the page boundary exactly. */
-  .prescription-form-page {
-    min-height: calc(100vh - 30mm);
   }
 }

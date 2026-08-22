@@ -460,9 +460,10 @@ main > section > article ul {
 .prescription-writing-area {
   position: relative;
   /* 150mm base (see above) confirmed fitting on one printed page with room
-     to spare -- +100px per explicit follow-up request to use more of that
-     spare room, once the sizing mechanism itself was actually reliable. */
-  min-height: calc(150mm + 100px);
+     to spare -- +250px total (two follow-up bumps: +100px, then +150px
+     more) per explicit request to use more of that spare room, once the
+     sizing mechanism itself was actually reliable. */
+  min-height: calc(150mm + 250px);
   margin-top: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;

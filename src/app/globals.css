@@ -459,7 +459,10 @@ main > section > article ul {
    entirely -- this box is now sized by min-height alone, nothing else. */
 .prescription-writing-area {
   position: relative;
-  min-height: 150mm;
+  /* 150mm base (see above) confirmed fitting on one printed page with room
+     to spare -- +100px per explicit follow-up request to use more of that
+     spare room, once the sizing mechanism itself was actually reliable. */
+  min-height: calc(150mm + 100px);
   margin-top: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;

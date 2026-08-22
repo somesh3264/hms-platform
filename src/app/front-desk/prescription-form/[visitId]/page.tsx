@@ -23,11 +23,17 @@ import { PrintButton } from '@/app/components/PrintButton';
 // registration number on the right, a full-width rule, a left sidebar
 // listing every doctor at the practice (a static roster on the real paper,
 // same on every sheet regardless of who's actually seeing this particular
-// patient), and the assigned doctor and patient details filled in above the
-// blank writing area. The sidebar was briefly removed and then explicitly
-// asked back -- the doctor wanted both it and its dividing border kept
-// as-is. The disclaimer line's exact wording was corrected per the
-// hospital's own instruction, not re-copied from the photo.
+// patient) in the same name-dark/department-muted style as the photo, and
+// patient details filled in above the blank writing area, which itself
+// carries a faint hospital logo watermark, matching the photo's own
+// letterhead-stamp-in-the-background look. The disclaimer line's exact
+// wording (currently 15 days) was corrected per the hospital's own
+// instruction, not re-copied from the photo.
+//
+// The sidebar deliberately does *not* distinguish the doctor actually
+// assigned to this visit from the other two -- an earlier version bolded
+// them differently to make that unambiguous, but the hospital asked to
+// keep this simple, matching the plain static roster the real paper shows.
 //
 // Fetches the visit and the full doctor roster in the same transaction --
 // `users` is RLS-protected same as every other tenant-owned table, so the
@@ -44,7 +50,6 @@ async function loadPrescriptionForm(hospitalId: string, visitId: string) {
         visitDate: true,
         tokenNumber: true,
         patient: { select: { name: true, patientCode: true, age: true, gender: true } },
-        doctor: { select: { id: true, name: true, department: true } },
       },
     });
     const doctors = await tx.user.findMany({
@@ -116,14 +121,7 @@ export default async function PrescriptionFormPage({
         <div className="letterhead-body">
           <aside className="letterhead-sidebar">
             {doctors.map((doctor) => (
-              <div
-                key={doctor.id}
-                className={
-                  doctor.id === visit.doctor.id
-                    ? 'letterhead-sidebar-doctor letterhead-sidebar-doctor-assigned'
-                    : 'letterhead-sidebar-doctor'
-                }
-              >
+              <div key={doctor.id} className="letterhead-sidebar-doctor">
                 <strong>{doctor.name}</strong>
                 {doctor.department && <div>{doctor.department}</div>}
               </div>
@@ -148,15 +146,28 @@ export default async function PrescriptionFormPage({
               )}
             </div>
 
-            {/* Deliberately blank -- the doctor hand-writes the diagnosis
-                and medicines here, then this same page is
-                photographed/scanned and uploaded through the existing
-                doctor prescription-upload flow. */}
-            <div className="prescription-writing-area" aria-hidden="true" />
+            {/* Deliberately blank aside from the watermark -- the doctor
+                hand-writes the diagnosis and medicines here, then this
+                same page is photographed/scanned and uploaded through the
+                existing doctor prescription-upload flow. The watermark is
+                the same logo file used in the header above (already the
+                combined "hospital name arc + circular mark" letterhead
+                asset, not a separate name-only graphic), faded via CSS
+                rather than a second uploaded image. */}
+            <div className="prescription-writing-area" aria-hidden="true">
+              {hospital.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={hospital.logoUrl}
+                  alt=""
+                  className="prescription-writing-area-watermark"
+                />
+              )}
+            </div>
           </div>
         </div>
 
-        <p className="letterhead-footer">Disclaimer: this prescription is valid for 10 days</p>
+        <p className="letterhead-footer">Disclaimer: this prescription is valid for 15 days</p>
       </div>
     </main>
   );

@@ -440,11 +440,32 @@ main > section > article ul {
    .letterhead-content below; min-height is now just a floor for short
    viewports/pages, not the actual sizing mechanism. */
 .prescription-writing-area {
+  position: relative;
   flex: 1;
   min-height: 200px;
   margin-top: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Faint hospital-logo watermark centered behind the doctor's handwriting --
+   a later, explicitly requested addition matching the real letterhead
+   photo's own look, where the letterhead stamp sits faded in the
+   background of the writing area. Reuses the header's own logo file rather
+   than a separate uploaded asset. Absolutely positioned + low opacity
+   rather than a CSS background-image, since the logo is a per-hospital
+   uploaded URL, not something expressible as a static class; pointer-events
+   none and aria-hidden on the parent keep it fully decorative. */
+.prescription-writing-area-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 60%;
+  max-height: 60%;
+  opacity: 0.08;
+  pointer-events: none;
 }
 
 /* Makes the printed prescription's writing area grow all the way down to
@@ -508,13 +529,13 @@ main > section > article ul {
    the real letterhead, present on every sheet regardless of who's actually
    seeing this particular patient (re-added at the hospital's explicit
    request after briefly being removed; the doctor wanted both the roster
-   and its dividing border kept). letterhead-sidebar-doctor-assigned bolds
-   the one actually assigned to this visit, so the printout is unambiguous
-   about which one it's for -- the physical paper relies on staff already
-   knowing that from context, which doesn't hold once this is printed in
-   advance by front desk. flex: 1 grows the row to fill .letterhead's space
-   left over after the header/rule (letterhead-footer is its sibling, not
-   part of this row). */
+   and its dividing border kept). Every entry is styled identically --
+   name dark, department/qualification muted -- matching the reference
+   photo; an earlier version additionally bolded whichever doctor was
+   assigned to a given visit, but the hospital asked to keep this simple,
+   so there's no per-visit distinction any more, same as the real paper.
+   flex: 1 grows the row to fill .letterhead's space left over after the
+   header/rule (letterhead-footer is its sibling, not part of this row). */
 .letterhead-body {
   display: flex;
   flex: 1;
@@ -530,11 +551,11 @@ main > section > article ul {
 .letterhead-sidebar-doctor {
   margin-bottom: 1rem;
   font-size: 0.9rem;
-  color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
-.letterhead-sidebar-doctor-assigned {
-  color: var(--color-text);
+.letterhead-sidebar-doctor div {
+  color: var(--color-text-muted);
 }
 
 /* display: flex/column is what lets its own .prescription-writing-area

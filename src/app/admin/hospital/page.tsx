@@ -65,6 +65,14 @@ export default async function HospitalSettingsPage({
             />
           </label>
           <label>
+            Pharmacy/medical store name (shown on medicine bills, if different)
+            <input type="text" name="pharmacyName" defaultValue={hospital.pharmacyName ?? ''} />
+          </label>
+          <label>
+            Pharmacy/medical store GSTIN (shown on medicine bills, if different)
+            <input type="text" name="pharmacyGstin" defaultValue={hospital.pharmacyGstin ?? ''} />
+          </label>
+          <label>
             Theme color
             <input type="color" name="themeColor" defaultValue={hospital.themeColor ?? '#2563eb'} />
           </label>

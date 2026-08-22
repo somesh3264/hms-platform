@@ -53,6 +53,16 @@ function formatRupees(cents: number): string {
 // reference format but already exists as real hospital data (FR-7.6 calls
 // for it on the printable bill) -- kept in the header's right column rather
 // than silently dropped.
+//
+// A bill carrying a MEDICINE line item (see isMedicineBill below) is a
+// transaction of the hospital's in-house medical store, a separate
+// registered entity from the hospital itself -- shows that store's own
+// name/GSTIN (Hospital.pharmacyName/pharmacyGstin) instead of the
+// hospital's, omits the hospital's clinical-establishment registration
+// number (belongs to the hospital, not the store), and omits the "By: Dr.
+// X" line (a later, explicitly requested set of changes, kept deliberately
+// minimal per that same request -- everything else about the bill stays
+// exactly as it is for a medicine bill).
 export default async function BillDetailPage({
   params,
   searchParams,
@@ -71,6 +81,17 @@ export default async function BillDetailPage({
   );
 
   const isPaid = bill.paymentStatus === 'PAID';
+  // The pharmacist's billing flow (createBill) is the only path that ever
+  // attaches a MEDICINE line item; front desk's own bills (consultation
+  // fee, surgery/procedure charges) are always SERVICE-only. A bill with
+  // any medicine on it is therefore a transaction of the in-house medical
+  // store, not the hospital itself -- a later, explicitly requested
+  // distinction, since the store trades under its own name/GSTIN. Falls
+  // back to the hospital's own name/gstin when the pharmacy-specific ones
+  // aren't configured, rather than showing blank branding.
+  const isMedicineBill = bill.lineItems.some((item) => item.itemType === 'MEDICINE');
+  const billerName = (isMedicineBill && bill.hospital.pharmacyName) || bill.hospital.name;
+  const billerGstin = (isMedicineBill && bill.hospital.pharmacyGstin) || bill.hospital.gstin;
 
   return (
     <main>
@@ -89,20 +110,22 @@ export default async function BillDetailPage({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={bill.hospital.logoUrl}
-                alt={bill.hospital.name}
+                alt={billerName}
                 className="invoice-logo"
               />
             )}
             <div>
-              <h1>{bill.hospital.name}</h1>
+              <h1>{billerName}</h1>
               {bill.hospital.address && <p>{bill.hospital.address}</p>}
               {bill.hospital.website && <p>{bill.hospital.website}</p>}
             </div>
           </div>
           <div className="invoice-header-right">
             {bill.hospital.contactPhone && <p>Contact No. {bill.hospital.contactPhone}</p>}
-            {bill.hospital.registrationNumber && <p>Reg.no. {bill.hospital.registrationNumber}</p>}
-            {bill.hospital.gstin && <p>GSTIN: {bill.hospital.gstin}</p>}
+            {!isMedicineBill && bill.hospital.registrationNumber && (
+              <p>Reg.no. {bill.hospital.registrationNumber}</p>
+            )}
+            {billerGstin && <p>GSTIN: {billerGstin}</p>}
           </div>
         </div>
 
@@ -125,7 +148,7 @@ export default async function BillDetailPage({
 
         <hr className="invoice-rule" />
 
-        {bill.visit.doctor && (
+        {!isMedicineBill && bill.visit.doctor && (
           <p>
             By: <strong>{bill.visit.doctor.name}</strong>
           </p>

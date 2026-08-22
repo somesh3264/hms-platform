@@ -19,6 +19,8 @@ export interface UpdateHospitalBrandingInput {
   website?: string;
   gstin?: string;
   registrationNumber?: string;
+  pharmacyName?: string;
+  pharmacyGstin?: string;
   themeColor?: string;
   logoUrl?: string;
   upiQrCodeUrl?: string;
@@ -38,6 +40,8 @@ export async function updateHospitalBranding(
       website: input.website ?? null,
       gstin: input.gstin ?? null,
       registrationNumber: input.registrationNumber ?? null,
+      pharmacyName: input.pharmacyName ?? null,
+      pharmacyGstin: input.pharmacyGstin ?? null,
       themeColor: input.themeColor ?? null,
       ...(input.logoUrl ? { logoUrl: input.logoUrl } : {}),
       ...(input.upiQrCodeUrl ? { upiQrCodeUrl: input.upiQrCodeUrl } : {}),

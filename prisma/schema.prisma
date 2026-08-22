@@ -52,6 +52,16 @@ model Hospital {
   // a later, explicitly requested addition once the hospital's real
   // letterhead photo showed it printed there.
   registrationNumber String?  @map("registration_number")
+  // The in-house medical store often trades under its own registered name
+  // and GSTIN, distinct from the hospital's own -- shown on the printable
+  // bill (src/app/billing/[billId]) in place of the hospital's own
+  // name/gstin whenever a bill contains a MEDICINE line item, since that
+  // makes it a transaction of the pharmacy entity, not the hospital's own.
+  // Nullable: falls back to the hospital's own name/gstin when unset,
+  // rather than forcing every hospital to configure a separate pharmacy
+  // identity it may not have.
+  pharmacyName  String?       @map("pharmacy_name")
+  pharmacyGstin String?       @map("pharmacy_gstin")
   themeColor   String?        @map("theme_color")
   status       HospitalStatus @default(ACTIVE)
 

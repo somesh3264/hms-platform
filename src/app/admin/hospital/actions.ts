@@ -51,6 +51,8 @@ export async function updateHospitalBrandingAction(formData: FormData): Promise<
         website: optionalString(formData, 'website'),
         gstin: optionalString(formData, 'gstin'),
         registrationNumber: optionalString(formData, 'registrationNumber'),
+        pharmacyName: optionalString(formData, 'pharmacyName'),
+        pharmacyGstin: optionalString(formData, 'pharmacyGstin'),
         themeColor: optionalString(formData, 'themeColor'),
         logoUrl,
         upiQrCodeUrl,

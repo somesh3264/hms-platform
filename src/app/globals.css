@@ -434,24 +434,26 @@ main > section > article ul {
    hand-write the diagnosis/medicines -- the hospital has no printer at the
    doctor's desk, so this page is printed in advance at the front desk and
    physically carried in by the patient.
-   min-height: 190mm (not the flex: 1 growth below) is what actually fills
-   most of the page -- flex: 1 plus a min-height:100vh ancestor looked
-   right in a resized-browser-window emulation, but a real "Print /
-   Download PDF" output from production showed a large blank gap below the
-   disclaimer, proving flexbox filling remaining space doesn't reliably
-   carry through Chrome's actual print pagination the way it does in a
-   normal browser window. mm is a physical, print-native unit (unlike vh,
-   whose meaning in a paginated print context turned out to be exactly the
-   unreliable part here), sized generously against A4's 297mm height minus
-   the ~24mm page margin and the header/sidebar/footer's own space, with a
-   margin of safety kept well short of the true maximum so a taller header
-   (e.g. a longer address) doesn't push this back onto a second page. flex:
-   1 is kept as a harmless bonus for on-screen viewing on very tall
-   windows; it is not load-bearing for print any more. */
+   min-height (not the flex: 1 growth below) is what actually fills most of
+   the page -- flex: 1 plus a min-height:100vh ancestor looked right in a
+   resized-browser-window emulation, but a real "Print / Download PDF"
+   output from production showed a large blank gap below the disclaimer,
+   proving flexbox filling remaining space doesn't reliably carry through
+   Chrome's actual print pagination the way it does in a normal browser
+   window. mm is a physical, print-native unit (unlike vh, whose meaning in
+   a paginated print context turned out to be exactly the unreliable part
+   here). First attempt at this value (190mm) was itself checked against a
+   real local PDF and was still too tall -- close enough to fill the page
+   that the footer had nowhere left to go and was pushed onto its own
+   near-blank second page. Backed off by 40mm rather than trimming the
+   minimum needed, deliberately prioritizing "reliably fits" over
+   "maximizes page usage" after two consecutive misses on this exact
+   number. flex: 1 is kept as a harmless bonus for on-screen viewing on
+   very tall windows; it is not load-bearing for print any more. */
 .prescription-writing-area {
   position: relative;
   flex: 1;
-  min-height: 190mm;
+  min-height: 150mm;
   margin-top: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;
@@ -478,10 +480,10 @@ main > section > article ul {
 }
 
 /* min-height: 100vh here is only for a nicer on-screen look on tall
-   windows -- .prescription-writing-area's own min-height: 190mm is what
-   actually fills the printed page now (see that rule for why the flex-fill
-   approach this used to rely on was dropped for print). Scoped to this one
-   page's <main>, not a blanket main rule -- every other page in the app
+   windows -- .prescription-writing-area's own min-height is what actually
+   fills the printed page now (see that rule for why the flex-fill approach
+   this used to rely on was dropped for print). Scoped to this one page's
+   <main>, not a blanket main rule -- every other page in the app
    uses the same <main> element. */
 .prescription-form-page {
   display: flex;

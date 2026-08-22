@@ -49,25 +49,20 @@ export async function saveConsultationNotes(
   });
 }
 
-// Marks a consultation complete (FR-4.5). Per FR-4.5, this is only valid
-// once a prescription has been uploaded against the visit -- so this
-// requires a Prescription row to already exist. Prescription upload
-// (BRS Module 3.5) isn't built yet, so this function is intentionally not
-// wired to any UI yet: it would always reject. It's implemented now (and
-// tested against a live database) so it's ready once that module lands.
+// Marks a consultation complete (FR-4.5). FR-4.5 originally required a
+// prescription to already exist first -- a later, explicitly requested
+// change dropped that gate: the real workflow has the doctor writing the
+// prescription on paper and calling front desk to scan it in (see
+// CLAUDE.md's "Front desk attaches prescription scans" section), which can
+// take a while, and the doctor needs to move on to the next waiting patient
+// in the meantime rather than being blocked on that call finishing. The
+// prescription can now be attached after the visit is COMPLETED too (see
+// uploadPrescription/replacePrescription) -- front desk's "Completed today"
+// list flags which completed visits are still missing one.
 export async function completeConsultation(
   tx: Prisma.TransactionClient,
   params: { hospitalId: string; actorId: string; visitId: string },
 ): Promise<void> {
-  const prescriptionCount = await tx.prescription.count({
-    where: { hospitalId: params.hospitalId, visitId: params.visitId },
-  });
-  if (prescriptionCount === 0) {
-    throw new Error(
-      'Cannot complete consultation before a prescription has been uploaded (FR-4.5).',
-    );
-  }
-
   const { count } = await tx.visit.updateMany({
     where: { id: params.visitId, hospitalId: params.hospitalId, status: 'IN_CONSULTATION' },
     data: { status: 'COMPLETED' },

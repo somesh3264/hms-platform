@@ -14,11 +14,15 @@ import { replacePrescriptionAction, uploadPrescriptionAction } from './actions';
 // explicitly requested change from redirecting straight back to
 // /front-desk, so front desk could print immediately instead of hunting for
 // it afterwards); now also the target of a dedicated "Bills" link from the
-// waiting queue and "Completed today", and of "In consultation"'s "Attach
-// prescription" link (see CLAUDE.md's "Front desk attaches prescription
-// scans" section -- the doctor's consultation room has no scanner, so the
-// doctor calls front desk to scan the paper prescription in instead of
-// uploading it themselves). Every bill on the visit is listed generically
+// waiting queue and "Completed today", and of "In consultation"/"Completed
+// today"'s "Attach prescription" link (see CLAUDE.md's "Front desk attaches
+// prescription scans" section -- the doctor's consultation room has no
+// scanner, so the doctor calls front desk to scan the paper prescription in
+// instead of uploading it themselves). The upload form itself works on a
+// visit that's IN_CONSULTATION *or* already COMPLETED -- completing a
+// consultation no longer waits on a prescription existing first, so the
+// scan very often gets attached after the doctor has already moved on to
+// the next patient. Every bill on the visit is listed generically
 // (number/total/status), not just a single assumed "the" consultation-fee
 // one, since a visit can carry several (consultation fee, one or more
 // front-desk charges, and -- once completed -- a pharmacy medicine bill
@@ -82,7 +86,7 @@ export default async function VisitCreatedPage({
       <section>
         <h2>Prescription</h2>
 
-        {visit.status === 'IN_CONSULTATION' &&
+        {(visit.status === 'IN_CONSULTATION' || visit.status === 'COMPLETED') &&
           !visit.prescriptions.some((p) => p.status === 'UPLOADED') && (
             <form key={searchParams.sid ?? 'idle'} action={uploadPrescriptionAction}>
               <input type="hidden" name="visitId" value={visit.id} />

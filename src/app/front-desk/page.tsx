@@ -385,7 +385,11 @@ export default async function FrontDeskPage({
 
       <section>
         <h2>Completed today</h2>
-        <p>So you know when a patient&apos;s consultation has just finished.</p>
+        <p>
+          So you know when a patient&apos;s consultation has just finished. The doctor often moves
+          on to the next patient before the paper prescription is scanned in -- attach it here once
+          it&apos;s ready.
+        </p>
         {recentlyCompleted.length === 0 ? (
           <p>None completed yet today.</p>
         ) : (
@@ -396,6 +400,7 @@ export default async function FrontDeskPage({
                 <th>Patient</th>
                 <th>Doctor</th>
                 <th>Completed</th>
+                <th>Prescription</th>
                 <th></th>
                 <th>Bills</th>
               </tr>
@@ -409,6 +414,15 @@ export default async function FrontDeskPage({
                   </td>
                   <td>{visit.doctor.name}</td>
                   <td>{formatISTDateTime(visit.updatedAt)}</td>
+                  <td>
+                    <Link href={`/front-desk/visit/${visit.id}`}>
+                      {visit.prescriptions.length > 0 ? (
+                        <StatusBadge status="UPLOADED" />
+                      ) : (
+                        'Attach prescription'
+                      )}
+                    </Link>
+                  </td>
                   <td>
                     <Link href={`/front-desk/bill/${visit.id}`}>Bill for surgery/procedure</Link>
                   </td>

@@ -96,6 +96,11 @@ export async function listRecentlyCompletedVisits(
       // pharmacy-billed medicine Bill that's still PENDING, and front desk
       // should still be able to reach it to view/print.
       bills: { select: { id: true } },
+      // Completing a consultation no longer waits on a prescription
+      // existing first (see completeConsultation) -- this flags which
+      // completed visits still need the scan attached, same as
+      // listInConsultationVisits above.
+      prescriptions: { where: { status: 'UPLOADED' }, select: { id: true } },
     },
   });
 }

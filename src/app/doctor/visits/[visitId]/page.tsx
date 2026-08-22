@@ -28,7 +28,6 @@ export default async function VisitDetailPage({
     return { visit, history };
   });
 
-  const hasUploadedPrescription = visit.prescriptions.some((p) => p.status === 'UPLOADED');
   // getPatientHistory returns every visit for the patient, including this
   // one -- fine for the patient longitudinal view (no "current visit" of
   // its own to exclude), but "Visit history" here should only ever show
@@ -90,16 +89,10 @@ export default async function VisitDetailPage({
               <button type="submit">Save notes</button>
             </form>
 
-            {hasUploadedPrescription ? (
-              <form action={completeConsultationAction}>
-                <input type="hidden" name="visitId" value={visit.id} />
-                <button type="submit">Complete consultation</button>
-              </form>
-            ) : (
-              <p>
-                <em>Upload a prescription below before completing this consultation.</em>
-              </p>
-            )}
+            <form action={completeConsultationAction}>
+              <input type="hidden" name="visitId" value={visit.id} />
+              <button type="submit">Complete consultation</button>
+            </form>
           </>
         )}
 
@@ -111,7 +104,7 @@ export default async function VisitDetailPage({
       <section>
         <h2>Prescriptions</h2>
 
-        {visit.status === 'IN_CONSULTATION' && (
+        {(visit.status === 'IN_CONSULTATION' || visit.status === 'COMPLETED') && (
           <form key={searchParams.sid ?? 'idle'} action={uploadPrescriptionAction}>
             <input type="hidden" name="visitId" value={visit.id} />
             <label>

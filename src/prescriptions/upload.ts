@@ -17,11 +17,15 @@ export interface UploadPrescriptionInput {
 
 // Scans/uploads a prescription against a visit (FR-5.1/5.2), auto-routing it
 // to the pharmacy queue (FR-5.4) simply by existing with status UPLOADED --
-// see listPharmacyQueue. Only valid while the visit is IN_CONSULTATION,
-// matching the BRS flow (doctor writes the prescription during consultation,
-// uploads it, then completes the consultation -- see
-// src/visits/consultation.ts's completeConsultation, which requires this to
-// have happened first).
+// see listPharmacyQueue. Valid while the visit is IN_CONSULTATION *or*
+// already COMPLETED -- a later, explicitly requested change: completing a
+// consultation no longer waits on a prescription existing first (see
+// completeConsultation), since the real workflow has the doctor moving on
+// to the next patient while front desk is still scanning the paper
+// prescription in on a separate phone call, so the visit is often already
+// COMPLETED by the time the scan is actually attached. Still rejects a
+// WAITING or CANCELLED visit -- there's no consultation to attach a
+// prescription to yet/anymore in those states.
 export async function uploadPrescription(
   tx: Prisma.TransactionClient,
   input: UploadPrescriptionInput,
@@ -41,11 +45,15 @@ export async function uploadPrescription(
   }
 
   const visit = await tx.visit.findFirst({
-    where: { id: input.visitId, hospitalId: input.hospitalId, status: 'IN_CONSULTATION' },
+    where: {
+      id: input.visitId,
+      hospitalId: input.hospitalId,
+      status: { in: ['IN_CONSULTATION', 'COMPLETED'] },
+    },
     select: { id: true, patientId: true },
   });
   if (!visit) {
-    throw new Error(`Visit not found or not in consultation: ${input.visitId}`);
+    throw new Error(`Visit not found, or not in consultation/completed: ${input.visitId}`);
   }
 
   const { url } = await saveFile({

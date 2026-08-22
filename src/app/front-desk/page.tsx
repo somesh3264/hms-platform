@@ -17,6 +17,17 @@ import { UpiQrCode } from '@/app/components/UpiQrCode';
 
 import { collectConsultationFeeAction, createVisitAction, registerPatientAction } from './actions';
 
+// The primary doctor (User.isPrimaryDoctor, see prisma/schema.prisma) shows
+// as "Shivgeet hospital" in every doctor-picking dropdown instead of his own
+// name -- a later, explicitly requested addition: he sees essentially every
+// patient first (before any referral to a specialist), so front desk
+// doesn't need to know/pick his name specifically, just that the patient is
+// seeing "the hospital." Client-specific literal wording, not derived from
+// Hospital.name.
+function doctorLabel(doctor: { name: string; isPrimaryDoctor: boolean }): string {
+  return doctor.isPrimaryDoctor ? 'Shivgeet hospital' : doctor.name;
+}
+
 // Shared by every place the consultation fee is collected (walk-in
 // registration, "Create visit", and the waiting-queue "collect on arrival"
 // form) -- fee/discount in rupees (same convention as the billing module's
@@ -90,8 +101,8 @@ export default async function FrontDeskPage({
       });
       const doctors = await tx.user.findMany({
         where: { hospitalId, role: 'DOCTOR', isActive: true },
-        select: { id: true, name: true },
-        orderBy: { name: 'asc' },
+        select: { id: true, name: true, isPrimaryDoctor: true },
+        orderBy: [{ isPrimaryDoctor: 'desc' }, { name: 'asc' }],
       });
       return { searchResults, queue, inConsultation, recentlyCompleted, doctors };
     });
@@ -151,7 +162,7 @@ export default async function FrontDeskPage({
                         <option value="">Assign doctor…</option>
                         {doctors.map((doctor) => (
                           <option key={doctor.id} value={doctor.id}>
-                            {doctor.name}
+                            {doctorLabel(doctor)}
                           </option>
                         ))}
                       </select>
@@ -226,7 +237,7 @@ export default async function FrontDeskPage({
               <option value="">No appointment yet</option>
               {doctors.map((doctor) => (
                 <option key={doctor.id} value={doctor.id}>
-                  {doctor.name}
+                  {doctorLabel(doctor)}
                 </option>
               ))}
             </select>

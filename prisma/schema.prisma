@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // "native" covers local dev (whatever platform that happens to be);
   // "linux-musl-openssl-3.0.x" is pinned explicitly for the production
   // Docker image (node:20-alpine) rather than relying solely on
@@ -21,8 +21,8 @@ datasource db {
 // src/shared/tenant-context.ts for how the app satisfies them at query time.
 
 model Hospital {
-  id           String         @id @default(cuid())
-  name         String
+  id                 String         @id @default(cuid())
+  name               String
   // Tenant-resolution key for the shared-platform deployment model (BRS
   // FR-1.7): requests are routed by the subdomain of the Host header
   // (e.g. "apollo" for apollo.yourdomain.com) rather than a hardcoded
@@ -30,28 +30,28 @@ model Hospital {
   // Lowercase, URL-safe, unique across the whole platform (not just per
   // hospital, since there is no enclosing scope narrower than "the
   // deployment" for this field).
-  subdomain    String         @unique
-  logoUrl      String?        @map("logo_url")
+  subdomain          String         @unique
+  logoUrl            String?        @map("logo_url")
   // Hospital Admin-uploaded UPI QR code (FR-7.5-adjacent, a later,
   // explicitly requested addition), shown wherever staff can select UPI as
   // a payment method so the patient can scan-to-pay directly. Same
   // upload/storage pattern as logoUrl, not a raw UPI ID/VPA -- see
   // saveHospitalUpiQrCode in src/shared/storage.ts.
-  upiQrCodeUrl String?        @map("upi_qr_code_url")
-  address      String?
-  contactPhone String?        @map("contact_phone")
-  contactEmail String?        @map("contact_email")
+  upiQrCodeUrl       String?        @map("upi_qr_code_url")
+  address            String?
+  contactPhone       String?        @map("contact_phone")
+  contactEmail       String?        @map("contact_email")
   // Shown on the printable bill's letterhead (src/app/billing/[billId]) --
   // a later, explicitly requested addition once the hospital gave a
   // reference bill format that includes it.
-  website      String?
-  gstin        String?
+  website            String?
+  gstin              String?
   // Clinical establishment registration number (e.g. a state health
   // department registration, distinct from GSTIN) -- shown on the printed
   // prescription form's letterhead (src/app/front-desk/prescription-form),
   // a later, explicitly requested addition once the hospital's real
   // letterhead photo showed it printed there.
-  registrationNumber String?  @map("registration_number")
+  registrationNumber String?        @map("registration_number")
   // The in-house medical store often trades under its own registered name
   // and GSTIN, distinct from the hospital's own -- shown on the printable
   // bill (src/app/billing/[billId]) in place of the hospital's own
@@ -60,10 +60,10 @@ model Hospital {
   // Nullable: falls back to the hospital's own name/gstin when unset,
   // rather than forcing every hospital to configure a separate pharmacy
   // identity it may not have.
-  pharmacyName  String?       @map("pharmacy_name")
-  pharmacyGstin String?       @map("pharmacy_gstin")
-  themeColor   String?        @map("theme_color")
-  status       HospitalStatus @default(ACTIVE)
+  pharmacyName       String?        @map("pharmacy_name")
+  pharmacyGstin      String?        @map("pharmacy_gstin")
+  themeColor         String?        @map("theme_color")
+  status             HospitalStatus @default(ACTIVE)
 
   // Default low-stock alert threshold (% of reorder level), FR-6.6/FR-6.7.
   // Overridable per medicine via Medicine.lowStockThresholdPercent.
@@ -112,17 +112,32 @@ enum UserRole {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  hospitalId   String   @map("hospital_id")
-  hospital     Hospital @relation(fields: [hospitalId], references: [id])
-  name         String
-  email        String
-  passwordHash String   @map("password_hash")
-  role         UserRole
-  department   String?
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  hospitalId      String   @map("hospital_id")
+  hospital        Hospital @relation(fields: [hospitalId], references: [id])
+  name            String
+  email           String
+  passwordHash    String   @map("password_hash")
+  role            UserRole
+  department      String?
+  isActive        Boolean  @default(true) @map("is_active")
+  // Marks the one doctor who sees a patient first, before any referral to a
+  // specialist -- front desk's "Assign doctor" dropdown shows this doctor
+  // as "Shivgeet hospital" instead of their own name (a later, explicitly
+  // requested addition, client-specific wording, not derived from
+  // Hospital.name), since front desk/patients think of seeing "the
+  // hospital" rather than needing to know a specific doctor's name up
+  // front. An explicit flag, not inferred from e.g. "oldest doctor
+  // account" -- this codebase already replaced exactly that kind of
+  // implicit shortcut once for hospital resolution (see
+  // resolveCurrentHospitalId's removed "oldest ACTIVE hospital" fallback)
+  // after flagging it as a silent-wrong-tenant risk; the same reasoning
+  // applies here; not DB-enforced as at-most-one-per-hospital (no unique
+  // partial index), same as other soft invariants in this codebase --
+  // keep it that way when setting it.
+  isPrimaryDoctor Boolean  @default(false) @map("is_primary_doctor")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   visitsAsDoctor        Visit[]        @relation("VisitDoctor")
   prescriptionsUploaded Prescription[] @relation("PrescriptionUploadedBy")

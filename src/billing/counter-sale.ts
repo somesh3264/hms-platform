@@ -1,57 +1,37 @@
-import type { Bill, PaymentMethod, Prisma } from '@prisma/client';
+import type { Bill, BillLineItem, PaymentMethod, Prisma } from '@prisma/client';
 
 import { recordAuditLog } from '@/shared';
 
-import { DEFAULT_TAX_PERCENT } from './constants';
 import { generateBillNumber } from './bill-number';
+import { DEFAULT_TAX_PERCENT } from './constants';
 import { recordPayment } from './payment';
 
-export interface CounterSaleItemInput {
+export interface AddCounterSaleItemInput {
+  hospitalId: string;
+  actorId: string;
+  patientId: string;
   medicineId: string;
   quantity: number;
 }
 
-export interface CreateCounterSaleInput {
-  hospitalId: string;
-  actorId: string;
-  patientId: string;
-  items: CounterSaleItemInput[];
-  discountCents?: number;
-  taxPercent?: number;
-  paymentMethod: PaymentMethod;
-  paymentReference?: string;
-}
-
-// A walk-in buying medicine with no doctor consultation involved (a later,
-// explicitly requested feature -- see CLAUDE.md's "Counter sale" section):
-// no Visit, no Prescription, none of the existing doctor-consultation
-// dispensing pipeline touched. Deliberately its own function rather than a
-// variant of dispenseItem/createBill: those are both anchored on a
-// Prescription/Visit that doesn't exist here.
-//
-// Combines what dispenseItem and collectFrontDeskCharges each do
-// separately into one atomic step, since there's no reason to split
-// "dispense" from "bill" when nothing is deferred: stock is decremented
-// per medicine via the same atomic conditional UPDATE dispenseItem uses
-// (not read-then-write, so concurrent counter sales can't oversell), the
-// resulting line items are attached directly to a new Bill (no unbilled-
-// then-swept-up intermediate state), and payment is recorded in the same
-// step, exactly like collectFrontDeskCharges's own walk-in-pays-right-now
-// shape. Tax defaults the same way createBill's medicine bills already do
-// (DEFAULT_TAX_PERCENT on the post-discount amount) -- a counter sale is
-// still fundamentally a medicine sale, no reason for its tax treatment to
-// differ.
-export async function createCounterSale(
+// Dispenses one medicine directly to a walk-in with no doctor consultation
+// involved (a later, explicitly requested feature -- see CLAUDE.md's
+// "Counter Sale" section). A later, explicitly requested revision made this
+// mirror dispenseItem's own one-medicine-at-a-time, atomic-stock-decrement
+// shape (FR-6.5) exactly, so the interaction here matches the prescription
+// dispense screen -- an earlier version combined item-selection and billing
+// into one atomic step instead. The one real difference from dispenseItem:
+// there's no Prescription to hang an unbilled line item off of (the
+// existing billId-null convention), so the "cart" is a real Bill, created
+// the moment the first item is dispensed (or reused, if one's already open
+// for this patient) -- finalizeCounterSale below applies discount/tax and
+// collects payment against that same Bill once dispensing is done.
+export async function addCounterSaleItem(
   tx: Prisma.TransactionClient,
-  input: CreateCounterSaleInput,
-): Promise<Bill> {
-  if (input.items.length === 0) {
-    throw new Error('At least one medicine is required.');
-  }
-  for (const item of input.items) {
-    if (item.quantity <= 0) {
-      throw new Error('Quantity must be positive.');
-    }
+  input: AddCounterSaleItemInput,
+): Promise<BillLineItem> {
+  if (input.quantity <= 0) {
+    throw new Error('Quantity must be positive.');
   }
 
   const patient = await tx.patient.findFirst({
@@ -62,66 +42,139 @@ export async function createCounterSale(
     throw new Error(`Patient not found: ${input.patientId}`);
   }
 
-  let subtotalCents = 0;
-  const lineItemsData: Prisma.BillLineItemCreateManyBillInput[] = [];
-  for (const item of input.items) {
-    const [medicine] = await tx.$queryRaw<{ name: string; unit_price_cents: number }[]>`
-      UPDATE medicines
-      SET stock_quantity = stock_quantity - ${item.quantity}
-      WHERE id = ${item.medicineId}
-        AND hospital_id = ${input.hospitalId}
-        AND stock_quantity >= ${item.quantity}
-      RETURNING name, unit_price_cents
-    `;
-    if (!medicine) {
-      throw new Error(
-        `Medicine not found or insufficient stock: ${item.medicineId} (requested ${item.quantity})`,
-      );
-    }
-
-    const lineTotalCents = medicine.unit_price_cents * item.quantity;
-    subtotalCents += lineTotalCents;
-    lineItemsData.push({
+  let bill = await tx.bill.findFirst({
+    where: {
       hospitalId: input.hospitalId,
-      medicineId: item.medicineId,
-      itemType: 'MEDICINE',
-      description: medicine.name,
-      quantity: item.quantity,
-      unitPriceCents: medicine.unit_price_cents,
-      lineTotalCents,
+      patientId: input.patientId,
+      visitId: null,
+      paymentStatus: 'PENDING',
+    },
+  });
+  if (!bill) {
+    const billNumber = await generateBillNumber(tx, input.hospitalId);
+    bill = await tx.bill.create({
+      data: {
+        hospitalId: input.hospitalId,
+        patientId: input.patientId,
+        billNumber,
+        subtotalCents: 0,
+        discountCents: 0,
+        taxCents: 0,
+        totalCents: 0,
+        paymentStatus: 'PENDING',
+        issuedAt: new Date(),
+      },
     });
   }
 
-  const discountCents = input.discountCents ?? 0;
-  const taxPercent = input.taxPercent ?? DEFAULT_TAX_PERCENT;
-  const taxableCents = Math.max(0, subtotalCents - discountCents);
-  const taxCents = Math.round(taxableCents * (taxPercent / 100));
-  const totalCents = taxableCents + taxCents;
+  const [medicine] = await tx.$queryRaw<{ name: string; unit_price_cents: number }[]>`
+    UPDATE medicines
+    SET stock_quantity = stock_quantity - ${input.quantity}
+    WHERE id = ${input.medicineId}
+      AND hospital_id = ${input.hospitalId}
+      AND stock_quantity >= ${input.quantity}
+    RETURNING name, unit_price_cents
+  `;
+  if (!medicine) {
+    throw new Error(
+      `Medicine not found or insufficient stock: ${input.medicineId} (requested ${input.quantity})`,
+    );
+  }
 
-  const billNumber = await generateBillNumber(tx, input.hospitalId);
+  const lineTotalCents = medicine.unit_price_cents * input.quantity;
 
-  const bill = await tx.bill.create({
+  const lineItem = await tx.billLineItem.create({
     data: {
       hospitalId: input.hospitalId,
-      patientId: input.patientId,
-      billNumber,
-      subtotalCents,
-      discountCents,
-      taxCents,
-      totalCents,
-      paymentStatus: 'PENDING',
-      issuedAt: new Date(),
-      lineItems: { createMany: { data: lineItemsData } },
+      billId: bill.id,
+      medicineId: input.medicineId,
+      itemType: 'MEDICINE',
+      description: medicine.name,
+      quantity: input.quantity,
+      unitPriceCents: medicine.unit_price_cents,
+      lineTotalCents,
+    },
+  });
+  await tx.bill.update({
+    where: { id: bill.id },
+    data: {
+      subtotalCents: { increment: lineTotalCents },
+      totalCents: { increment: lineTotalCents },
     },
   });
 
   await recordAuditLog(tx, {
     hospitalId: input.hospitalId,
     actorId: input.actorId,
-    action: 'COUNTER_SALE_GENERATED',
+    action: 'COUNTER_SALE_ITEM_DISPENSED',
     entityType: 'Bill',
     entityId: bill.id,
-    metadata: { patientId: input.patientId, totalCents, billNumber },
+    metadata: {
+      medicineId: input.medicineId,
+      quantity: input.quantity,
+      billLineItemId: lineItem.id,
+    },
+  });
+
+  return lineItem;
+}
+
+export interface FinalizeCounterSaleInput {
+  hospitalId: string;
+  actorId: string;
+  billId: string;
+  discountCents?: number;
+  taxPercent?: number;
+  paymentMethod: PaymentMethod;
+  paymentReference?: string;
+}
+
+// Closes out a counter sale -- applies the discount/tax entered at
+// checkout, then records payment -- mirroring finalizeDispensing's "must
+// have at least one dispensed item" gate one level up (that one closes a
+// Prescription; this one closes a Bill directly, since a counter sale has
+// no Prescription to gate on). Tax defaults the same way createBill's
+// medicine bills already do (DEFAULT_TAX_PERCENT on the post-discount
+// amount) -- a counter sale is still fundamentally a medicine sale, no
+// reason for its tax treatment to differ.
+export async function finalizeCounterSale(
+  tx: Prisma.TransactionClient,
+  input: FinalizeCounterSaleInput,
+): Promise<Bill> {
+  const bill = await tx.bill.findFirst({
+    where: {
+      id: input.billId,
+      hospitalId: input.hospitalId,
+      visitId: null,
+      paymentStatus: 'PENDING',
+    },
+    include: { lineItems: true },
+  });
+  if (!bill) {
+    throw new Error(`Counter sale not found or already finalized: ${input.billId}`);
+  }
+  if (bill.lineItems.length === 0) {
+    throw new Error('Cannot finalize a sale before at least one medicine has been dispensed.');
+  }
+
+  const discountCents = input.discountCents ?? 0;
+  const taxPercent = input.taxPercent ?? DEFAULT_TAX_PERCENT;
+  const taxableCents = Math.max(0, bill.subtotalCents - discountCents);
+  const taxCents = Math.round(taxableCents * (taxPercent / 100));
+  const totalCents = taxableCents + taxCents;
+
+  await tx.bill.update({
+    where: { id: bill.id },
+    data: { discountCents, taxCents, totalCents },
+  });
+
+  await recordAuditLog(tx, {
+    hospitalId: input.hospitalId,
+    actorId: input.actorId,
+    action: 'COUNTER_SALE_FINALIZED',
+    entityType: 'Bill',
+    entityId: bill.id,
+    metadata: { totalCents, billNumber: bill.billNumber },
   });
 
   return recordPayment(tx, {

@@ -9,7 +9,7 @@ import {
   requireSession,
   withHospitalContext,
 } from '@/shared';
-import { listRecentlyCompletedVisits, listWaitingQueue } from '@/visits';
+import { listInConsultationVisits, listRecentlyCompletedVisits, listWaitingQueue } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
@@ -79,11 +79,11 @@ export default async function FrontDeskPage({
     select: { upiQrCodeUrl: true },
   });
 
-  const { searchResults, queue, recentlyCompleted, doctors } = await withHospitalContext(
-    hospitalId,
-    async (tx) => {
+  const { searchResults, queue, inConsultation, recentlyCompleted, doctors } =
+    await withHospitalContext(hospitalId, async (tx) => {
       const searchResults = query ? await searchPatients(tx, { hospitalId, query }) : [];
       const queue = await listWaitingQueue(tx, { hospitalId });
+      const inConsultation = await listInConsultationVisits(tx, { hospitalId });
       const recentlyCompleted = await listRecentlyCompletedVisits(tx, {
         hospitalId,
         since: getISTDayBoundsUTC().start,
@@ -93,9 +93,8 @@ export default async function FrontDeskPage({
         select: { id: true, name: true },
         orderBy: { name: 'asc' },
       });
-      return { searchResults, queue, recentlyCompleted, doctors };
-    },
-  );
+      return { searchResults, queue, inConsultation, recentlyCompleted, doctors };
+    });
 
   return (
     <main>
@@ -315,6 +314,50 @@ export default async function FrontDeskPage({
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section>
+        <h2>In consultation</h2>
+        <p>
+          The doctor writes the prescription on paper and calls front desk to scan it in -- find the
+          patient here and attach the scan.
+        </p>
+        {inConsultation.length === 0 ? (
+          <p>No one currently in consultation.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Token #</th>
+                <th>Patient</th>
+                <th>Doctor</th>
+                <th>Since</th>
+                <th>Prescription</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inConsultation.map((visit) => (
+                <tr key={visit.id}>
+                  <td>{visit.tokenNumber ?? '—'}</td>
+                  <td>
+                    {visit.patient.name} ({visit.patient.patientCode})
+                  </td>
+                  <td>{visit.doctor.name}</td>
+                  <td>{formatISTDateTime(visit.visitDate)}</td>
+                  <td>
+                    <Link href={`/front-desk/visit/${visit.id}`}>
+                      {visit.prescriptions.length > 0 ? (
+                        <StatusBadge status="UPLOADED" />
+                      ) : (
+                        'Attach prescription'
+                      )}
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       <section>

@@ -1,30 +1,34 @@
 import Link from 'next/link';
 
-import { requireSession, withHospitalContext } from '@/shared';
+import { formatISTDateTime, requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
-// What's printable for one visit -- consultation fee bill, any other
-// front-desk charges (surgery/procedure), and the prescription form, all in
-// one place. Originally just the landing spot right after registering/
-// collecting a fee (a later, explicitly requested change from redirecting
-// straight back to /front-desk, so front desk could print immediately
-// instead of hunting for it afterwards); now also the target of a
-// dedicated "Bills" link from the waiting queue and "Completed today"
-// (another later, explicitly requested addition -- previously there was no
-// way back to a bill once its row stopped showing the fee-collection form,
-// so a missed print had no recovery short of searching the patient's own
-// record). Every bill on the visit is listed generically (number/total/
-// status), not just a single assumed "the" consultation-fee one, since a
-// visit can carry several (consultation fee, one or more front-desk
-// charges, and -- once completed -- a pharmacy medicine bill too).
+import { replacePrescriptionAction, uploadPrescriptionAction } from './actions';
+
+// Everything front desk needs for one visit -- consultation fee bill, any
+// other front-desk charges (surgery/procedure), the printable prescription
+// form, and now attaching the doctor's prescription scan. Originally just
+// the print landing spot right after registering/collecting a fee (a later,
+// explicitly requested change from redirecting straight back to
+// /front-desk, so front desk could print immediately instead of hunting for
+// it afterwards); now also the target of a dedicated "Bills" link from the
+// waiting queue and "Completed today", and of "In consultation"'s "Attach
+// prescription" link (see CLAUDE.md's "Front desk attaches prescription
+// scans" section -- the doctor's consultation room has no scanner, so the
+// doctor calls front desk to scan the paper prescription in instead of
+// uploading it themselves). Every bill on the visit is listed generically
+// (number/total/status), not just a single assumed "the" consultation-fee
+// one, since a visit can carry several (consultation fee, one or more
+// front-desk charges, and -- once completed -- a pharmacy medicine bill
+// too).
 export default async function VisitCreatedPage({
   params,
   searchParams,
 }: {
   params: { visitId: string };
-  searchParams: { success?: string; error?: string };
+  searchParams: { success?: string; error?: string; sid?: string };
 }) {
   const { hospitalId } = await requireSession(['FRONT_DESK']);
 
@@ -34,12 +38,14 @@ export default async function VisitCreatedPage({
       select: {
         id: true,
         tokenNumber: true,
+        status: true,
         patient: { select: { name: true, patientCode: true } },
         doctor: { select: { name: true } },
         bills: {
           select: { id: true, billNumber: true, totalCents: true, paymentStatus: true },
           orderBy: { createdAt: 'asc' },
         },
+        prescriptions: { orderBy: { createdAt: 'asc' } },
       },
     }),
   );
@@ -71,6 +77,72 @@ export default async function VisitCreatedPage({
             <Link href={`/front-desk/prescription-form/${visit.id}`}>Print prescription form</Link>
           </li>
         </ul>
+      </section>
+
+      <section>
+        <h2>Prescription</h2>
+
+        {visit.status === 'IN_CONSULTATION' &&
+          !visit.prescriptions.some((p) => p.status === 'UPLOADED') && (
+            <form key={searchParams.sid ?? 'idle'} action={uploadPrescriptionAction}>
+              <input type="hidden" name="visitId" value={visit.id} />
+              <label>
+                Scanned prescription (image or PDF)
+                <input
+                  type="file"
+                  name="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  required
+                />
+              </label>
+              <button type="submit">Upload</button>
+            </form>
+          )}
+
+        {visit.prescriptions.length === 0 ? (
+          <p>No prescription attached for this visit yet.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Uploaded</th>
+                <th>Status</th>
+                <th>File</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visit.prescriptions.map((prescription) => (
+                <tr key={prescription.id}>
+                  <td>{formatISTDateTime(prescription.createdAt)}</td>
+                  <td>
+                    <StatusBadge status={prescription.status} />
+                  </td>
+                  <td>
+                    <a href={prescription.fileUrl} target="_blank" rel="noreferrer">
+                      View
+                    </a>
+                  </td>
+                  <td>
+                    {prescription.status === 'UPLOADED' && (
+                      <form action={replacePrescriptionAction}>
+                        <input type="hidden" name="visitId" value={visit.id} />
+                        <input type="hidden" name="prescriptionId" value={prescription.id} />
+                        <input
+                          type="file"
+                          name="file"
+                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          required
+                        />
+                        <button type="submit">Reupload</button>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       <p>

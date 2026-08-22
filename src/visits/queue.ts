@@ -37,6 +37,37 @@ export async function listWaitingQueue(
   });
 }
 
+// Front desk's own awareness of who's currently with a doctor (a later,
+// explicitly requested addition -- see CLAUDE.md's "Front desk attaches
+// prescription scans" section for why): the real workflow turned out to be
+// the doctor writing the prescription on paper and calling front desk to
+// scan it in, not the doctor uploading it themselves (no scanner in the
+// consultation room) -- front desk needs to find the right visit during
+// that call. Bounded to today (IST), same reasoning as listWaitingQueue
+// above. Includes whether an UPLOADED prescription already exists so the
+// front-desk queue can show "attached" vs. "not yet" without a separate
+// query per row.
+export async function listInConsultationVisits(
+  tx: Prisma.TransactionClient,
+  params: { hospitalId: string },
+) {
+  const { start, end } = getISTDayBoundsUTC();
+
+  return tx.visit.findMany({
+    where: {
+      hospitalId: params.hospitalId,
+      status: 'IN_CONSULTATION',
+      visitDate: { gte: start, lt: end },
+    },
+    orderBy: { visitDate: 'asc' },
+    include: {
+      patient: { select: { id: true, patientCode: true, name: true } },
+      doctor: { select: { id: true, name: true } },
+      prescriptions: { where: { status: 'UPLOADED' }, select: { id: true } },
+    },
+  });
+}
+
 // Front desk's own awareness of consultations finishing (a later,
 // explicitly requested addition) -- previously front desk had zero
 // visibility into a visit once it left WAITING (listWaitingQueue above

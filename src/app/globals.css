@@ -162,6 +162,14 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* <form> is a block element by default, so two adjacent one-button forms
+   (e.g. "Save notes" next to "Complete consultation" on the doctor's visit
+   page) would otherwise stack with their buttons touching -- give every
+   form after the first in a run some breathing room. */
+form + form {
+  margin-top: 1rem;
+}
+
 /* Forms that are just a search bar (method="get") shouldn't stretch their
    button to a block width like the stacked forms below. */
 form[method='get'] {

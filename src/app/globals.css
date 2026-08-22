@@ -504,16 +504,42 @@ main > section > article ul {
   border-top: 2px solid var(--color-accent-maroon);
 }
 
-/* No sidebar/doctor-roster column -- an earlier version reproduced the real
-   letterhead's left sidebar listing every doctor at the practice, removed
-   at the hospital's explicit request since this practice has only the one
-   doctor and the sidebar's dividing border had nothing left to divide.
-   Doctor is now just another letterhead-patient-row field, same as
-   Pt. Name/Age-Sex/Date. flex: 1 grows this to fill .letterhead's space
+/* Left sidebar listing every doctor at the practice -- a static roster on
+   the real letterhead, present on every sheet regardless of who's actually
+   seeing this particular patient (re-added at the hospital's explicit
+   request after briefly being removed; the doctor wanted both the roster
+   and its dividing border kept). letterhead-sidebar-doctor-assigned bolds
+   the one actually assigned to this visit, so the printout is unambiguous
+   about which one it's for -- the physical paper relies on staff already
+   knowing that from context, which doesn't hold once this is printed in
+   advance by front desk. flex: 1 grows the row to fill .letterhead's space
    left over after the header/rule (letterhead-footer is its sibling, not
-   part of this); display: flex/column is what lets its own
-   .prescription-writing-area child in turn grow to fill what's left after
-   the patient-info rows. */
+   part of this row). */
+.letterhead-body {
+  display: flex;
+  flex: 1;
+  gap: 1.5rem;
+}
+
+.letterhead-sidebar {
+  flex: 0 0 200px;
+  border-right: 2px solid var(--color-accent-maroon);
+  padding-right: 1.5rem;
+}
+
+.letterhead-sidebar-doctor {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.letterhead-sidebar-doctor-assigned {
+  color: var(--color-text);
+}
+
+/* display: flex/column is what lets its own .prescription-writing-area
+   child grow to fill what's left after the patient-info rows; flex: 1
+   grows this to fill .letterhead-body's row alongside the sidebar. */
 .letterhead-content {
   display: flex;
   flex-direction: column;

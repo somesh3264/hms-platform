@@ -20,27 +20,40 @@ import { PrintButton } from '@/app/components/PrintButton';
 //
 // Layout modeled on a photo of the hospital's actual pre-printed
 // letterhead: logo + hospital name/address on the left of the header,
-// registration number on the right, a full-width rule, then the assigned
-// doctor and patient details filled in above the blank writing area. An
-// earlier version of this page also reproduced the photo's left sidebar
-// listing every doctor at the practice -- removed at the hospital's
-// explicit request, since this practice only has the one doctor and the
-// sidebar (and its dividing border) had nothing to distinguish. The
-// disclaimer line's exact wording was also corrected per the hospital's
-// own instruction, not re-copied from the photo.
-async function loadVisit(hospitalId: string, visitId: string) {
-  return withHospitalContext(hospitalId, (tx) =>
-    tx.visit.findFirstOrThrow({
+// registration number on the right, a full-width rule, a left sidebar
+// listing every doctor at the practice (a static roster on the real paper,
+// same on every sheet regardless of who's actually seeing this particular
+// patient), and the assigned doctor and patient details filled in above the
+// blank writing area. The sidebar was briefly removed and then explicitly
+// asked back -- the doctor wanted both it and its dividing border kept
+// as-is. The disclaimer line's exact wording was corrected per the
+// hospital's own instruction, not re-copied from the photo.
+//
+// Fetches the visit and the full doctor roster in the same transaction --
+// `users` is RLS-protected same as every other tenant-owned table, so the
+// roster query has to run through this same withHospitalContext (a plain
+// `prisma.user.findMany` outside of it would silently come back empty, not
+// throw, since the RLS policy fails closed with no app.current_hospital_id
+// session variable set).
+async function loadPrescriptionForm(hospitalId: string, visitId: string) {
+  return withHospitalContext(hospitalId, async (tx) => {
+    const visit = await tx.visit.findFirstOrThrow({
       where: { id: visitId, hospitalId },
       select: {
         id: true,
         visitDate: true,
         tokenNumber: true,
         patient: { select: { name: true, patientCode: true, age: true, gender: true } },
-        doctor: { select: { name: true, department: true } },
+        doctor: { select: { id: true, name: true, department: true } },
       },
-    }),
-  );
+    });
+    const doctors = await tx.user.findMany({
+      where: { hospitalId, role: 'DOCTOR', isActive: true },
+      select: { id: true, name: true, department: true },
+      orderBy: { name: 'asc' },
+    });
+    return { visit, doctors };
+  });
 }
 
 // Same "download filename should identify the patient" fix as the bill
@@ -52,7 +65,7 @@ export async function generateMetadata({
   params: { visitId: string };
 }): Promise<Metadata> {
   const { hospitalId } = await requireSession(['FRONT_DESK']);
-  const visit = await loadVisit(hospitalId, params.visitId);
+  const { visit } = await loadPrescriptionForm(hospitalId, params.visitId);
   return {
     title: `${visit.patient.name} (${visit.patient.patientCode}) - Prescription Form`,
   };
@@ -65,8 +78,8 @@ export default async function PrescriptionFormPage({
 }) {
   const { hospitalId } = await requireSession(['FRONT_DESK']);
 
-  const [visit, hospital] = await Promise.all([
-    loadVisit(hospitalId, params.visitId),
+  const [{ visit, doctors }, hospital] = await Promise.all([
+    loadPrescriptionForm(hospitalId, params.visitId),
     prisma.hospital.findUniqueOrThrow({
       where: { id: hospitalId },
       select: { name: true, logoUrl: true, address: true, registrationNumber: true },
@@ -100,35 +113,53 @@ export default async function PrescriptionFormPage({
 
         <div className="letterhead-rule" />
 
-        <div className="letterhead-content">
-          <div className="letterhead-patient-row">
-            <span>
-              Pt. Name: <strong>{visit.patient.name}</strong> ({visit.patient.patientCode})
-            </span>
-            <span>
-              Age/Sex: <strong>{visit.patient.age}/{visit.patient.gender}</strong>
-            </span>
-            <span>
-              Date: <strong>{formatISTDate(visit.visitDate)}</strong>
-            </span>
-            {visit.tokenNumber && (
-              <span>
-                Token #: <strong>{visit.tokenNumber}</strong>
-              </span>
-            )}
-          </div>
-          <div className="letterhead-patient-row">
-            <span>
-              Doctor: <strong>{visit.doctor.name}</strong>
-              {visit.doctor.department ? ` — ${visit.doctor.department}` : ''}
-            </span>
-          </div>
+        <div className="letterhead-body">
+          <aside className="letterhead-sidebar">
+            {doctors.map((doctor) => (
+              <div
+                key={doctor.id}
+                className={
+                  doctor.id === visit.doctor.id
+                    ? 'letterhead-sidebar-doctor letterhead-sidebar-doctor-assigned'
+                    : 'letterhead-sidebar-doctor'
+                }
+              >
+                <strong>{doctor.name}</strong>
+                {doctor.department && <div>{doctor.department}</div>}
+              </div>
+            ))}
+          </aside>
 
-          {/* Deliberately blank -- the doctor hand-writes the diagnosis
-              and medicines here, then this same page is
-              photographed/scanned and uploaded through the existing
-              doctor prescription-upload flow. */}
-          <div className="prescription-writing-area" aria-hidden="true" />
+          <div className="letterhead-content">
+            <div className="letterhead-patient-row">
+              <span>
+                Pt. Name: <strong>{visit.patient.name}</strong> ({visit.patient.patientCode})
+              </span>
+              <span>
+                Age/Sex: <strong>{visit.patient.age}/{visit.patient.gender}</strong>
+              </span>
+              <span>
+                Date: <strong>{formatISTDate(visit.visitDate)}</strong>
+              </span>
+              {visit.tokenNumber && (
+                <span>
+                  Token #: <strong>{visit.tokenNumber}</strong>
+                </span>
+              )}
+            </div>
+            <div className="letterhead-patient-row">
+              <span>
+                Doctor: <strong>{visit.doctor.name}</strong>
+                {visit.doctor.department ? ` — ${visit.doctor.department}` : ''}
+              </span>
+            </div>
+
+            {/* Deliberately blank -- the doctor hand-writes the diagnosis
+                and medicines here, then this same page is
+                photographed/scanned and uploaded through the existing
+                doctor prescription-upload flow. */}
+            <div className="prescription-writing-area" aria-hidden="true" />
+          </div>
         </div>
 
         <p className="letterhead-footer">Disclaimer: this prescription is valid for 10 days</p>

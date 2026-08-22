@@ -792,4 +792,18 @@ main > section > article ul {
     max-width: none;
     padding: 0;
   }
+
+  /* .prescription-form-page's min-height: 100vh (below) claims the full
+     page height for itself, but it's *also* inset by body's own 12mm
+     margin above -- min-height:100vh plus a 12mm top offset pushes its
+     bottom edge 12mm past the page, and body still needs its own 12mm
+     bottom margin on top of that, so the real available height is
+     100vh minus both margins, not 100vh alone. Print-only override since
+     screen has no such body margin to account for -- a later, explicitly
+     reported bug: a prescription with all three doctors in the sidebar
+     (taller than the single-doctor case this was first verified against)
+     was overflowing onto a second page by exactly this gap. */
+  .prescription-form-page {
+    min-height: calc(100vh - 24mm);
+  }
 }

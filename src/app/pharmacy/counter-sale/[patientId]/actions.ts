@@ -10,12 +10,12 @@ function optionalString(formData: FormData, key: string): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
 }
 
-// Pairs up the fixed medicineId/quantity rows by position, same technique
-// as collectFrontDeskChargesAction (src/app/front-desk/bill/[visitId]/
-// actions.ts) -- FormData.getAll for two same-name field arrays, no
-// per-row indices needed in the field names. A row needs both fields
-// filled to count; a row with only one filled is rejected as a mistake
-// rather than silently dropped, same as that action's own charge rows.
+// Pairs up the medicineId/quantity rows by position -- FormData.getAll for
+// two same-name field arrays, no per-row indices needed in the field
+// names. Every row in the catalog table always has a medicineId (a hidden
+// input, unlike the old dropdown version), so "not buying this one" is
+// just a zero/blank quantity, not a missing field -- rows are skipped on
+// that basis, not treated as a mistake.
 export async function completeCounterSaleAction(formData: FormData): Promise<void> {
   const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
   const patientId = String(formData.get('patientId') ?? '');
@@ -34,15 +34,15 @@ export async function completeCounterSaleAction(formData: FormData): Promise<voi
     for (let i = 0; i < medicineIds.length; i++) {
       const medicineId = medicineIds[i];
       const quantityRaw = quantities[i];
-      if (!medicineId && !quantityRaw) {
+      if (!medicineId || !quantityRaw) {
         continue;
       }
-      if (!medicineId || !quantityRaw) {
-        throw new Error('Each row needs both a medicine and a quantity.');
-      }
       const quantity = Number(quantityRaw);
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        throw new Error('Quantity must be a whole number greater than zero.');
+      if (quantity === 0) {
+        continue;
+      }
+      if (!Number.isInteger(quantity) || quantity < 0) {
+        throw new Error('Quantity must be a whole number.');
       }
       items.push({ medicineId, quantity });
     }

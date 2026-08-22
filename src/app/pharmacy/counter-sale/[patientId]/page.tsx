@@ -1,5 +1,5 @@
 import { DEFAULT_TAX_PERCENT } from '@/billing';
-import { listMedicines } from '@/inventory';
+import { listMedicines, searchMedicines } from '@/inventory';
 import { prisma, requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
@@ -7,31 +7,42 @@ import { UpiQrCode } from '@/app/components/UpiQrCode';
 
 import { completeCounterSaleAction } from './actions';
 
-// Fixed number of blank medicine+quantity row pairs, same reasoning as
-// front-desk's CHARGE_ROWS (src/app/front-desk/bill/[visitId]/page.tsx) --
-// this app has no client-side JS to grow a form, and a handful of rows
-// comfortably covers a typical counter purchase. A plain <select> listing
-// every medicine (not a search box, unlike the prescription-dispense
-// screen) since every browser's native select is already type-ahead
-// searchable, matching how "Assign doctor" elsewhere in the app works.
-const SALE_ROWS = 6;
-
+// Same search-bar-plus-full-catalog-table pattern as the prescription
+// dispense screen (src/app/pharmacy/[prescriptionId]/page.tsx) -- a later,
+// explicitly requested consistency fix, replacing an earlier version that
+// used a handful of blank <select> dropdown rows instead. The one real
+// difference from the dispense screen: dispensing there is repeatable
+// (one medicine, one immediate Server Action call, accumulating into
+// "Dispensed so far"), since it's billed later. A counter sale has nothing
+// to bill later -- createCounterSale (src/billing/counter-sale.ts) takes
+// every medicine in one atomic transaction -- so this is one table with a
+// quantity input per row and a single "Complete sale" button at the
+// bottom, not a per-row submit button. One consequence worth knowing:
+// since there's no server-side "cart" persisted between requests,
+// re-searching before completing the sale does lose quantities already
+// typed into other rows (a plain GET reload of this whole page) -- fine
+// for the common case of picking from the full list, since the catalog is
+// shown unfiltered by default and search is just a narrowing convenience,
+// but worth revisiting if that turns out to matter in practice.
 export default async function CounterSalePatientPage({
   params,
   searchParams,
 }: {
   params: { patientId: string };
-  searchParams: { success?: string; error?: string; sid?: string };
+  searchParams: { medQuery?: string; success?: string; error?: string; sid?: string };
 }) {
   const { hospitalId } = await requireSession(['PHARMACIST']);
+  const medQuery = searchParams.medQuery?.trim() ?? '';
 
-  const { patient, medicines } = await withHospitalContext(hospitalId, async (tx) => {
+  const { patient, medicineResults } = await withHospitalContext(hospitalId, async (tx) => {
     const patient = await tx.patient.findFirstOrThrow({
       where: { id: params.patientId, hospitalId },
       select: { id: true, name: true, patientCode: true },
     });
-    const medicines = await listMedicines(tx, hospitalId);
-    return { patient, medicines };
+    const medicineResults = medQuery
+      ? await searchMedicines(tx, { hospitalId, query: medQuery })
+      : await listMedicines(tx, hospitalId);
+    return { patient, medicineResults };
   });
   const hospital = await prisma.hospital.findUniqueOrThrow({
     where: { id: hospitalId },
@@ -48,28 +59,57 @@ export default async function CounterSalePatientPage({
 
       <section>
         <h2>Medicines</h2>
+        <form method="get">
+          <input
+            type="text"
+            name="medQuery"
+            defaultValue={medQuery}
+            placeholder="Search medicines by name"
+          />
+          <button type="submit">Search</button>
+        </form>
+
         <form key={searchParams.sid ?? 'idle'} action={completeCounterSaleAction}>
           <input type="hidden" name="patientId" value={patient.id} />
-          {Array.from({ length: SALE_ROWS }, (_, i) => (
-            <div className="inline-fields" key={i}>
-              <label>
-                Medicine
-                <select name="medicineId" defaultValue="">
-                  <option value=""></option>
-                  {medicines.map((medicine) => (
-                    <option key={medicine.id} value={medicine.id} disabled={medicine.stockQuantity === 0}>
-                      {medicine.name} — ₹{(medicine.unitPriceCents / 100).toFixed(2)} (stock:{' '}
-                      {medicine.stockQuantity})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Quantity
-                <input type="number" name="quantity" min={1} />
-              </label>
-            </div>
-          ))}
+
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>In stock</th>
+                <th>Unit price</th>
+                <th>Quantity</th>
+              </tr>
+            </thead>
+            <tbody>
+              {medicineResults.length === 0 && (
+                <tr>
+                  <td colSpan={4}>
+                    {medQuery ? 'No matching medicines.' : 'No medicines in inventory.'}
+                  </td>
+                </tr>
+              )}
+              {medicineResults.map((medicine) => (
+                <tr key={medicine.id}>
+                  <td>{medicine.name}</td>
+                  <td>{medicine.stockQuantity}</td>
+                  <td>₹{(medicine.unitPriceCents / 100).toFixed(2)}</td>
+                  <td>
+                    <input type="hidden" name="medicineId" value={medicine.id} />
+                    <input
+                      type="number"
+                      name="quantity"
+                      min={0}
+                      max={medicine.stockQuantity}
+                      defaultValue={0}
+                      disabled={medicine.stockQuantity === 0}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
           <label>
             Discount (₹)
             <input type="number" name="discountRupees" min={0} step="0.01" defaultValue={0} />

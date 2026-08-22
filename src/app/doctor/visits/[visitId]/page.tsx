@@ -1,5 +1,5 @@
 import { getPatientHistory } from '@/patients';
-import { requireSession, withHospitalContext } from '@/shared';
+import { formatISTDate, formatISTDateTime, requireSession, withHospitalContext } from '@/shared';
 import { getVisitDetail } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
@@ -69,7 +69,7 @@ export default async function VisitDetailPage({
           <dt>Doctor</dt>
           <dd>{visit.doctor.name}</dd>
           <dt>Since</dt>
-          <dd>{visit.visitDate.toLocaleString()}</dd>
+          <dd>{formatISTDateTime(visit.visitDate)}</dd>
         </dl>
 
         {visit.status === 'WAITING' && (
@@ -142,7 +142,7 @@ export default async function VisitDetailPage({
             <tbody>
               {visit.prescriptions.map((prescription) => (
                 <tr key={prescription.id}>
-                  <td>{prescription.createdAt.toLocaleString()}</td>
+                  <td>{formatISTDateTime(prescription.createdAt)}</td>
                   <td>
                     <StatusBadge status={prescription.status} />
                   </td>
@@ -190,7 +190,7 @@ export default async function VisitDetailPage({
             <tbody>
               {pastVisits.map((pastVisit) => (
                 <tr key={pastVisit.id}>
-                  <td>{pastVisit.visitDate.toLocaleDateString()}</td>
+                  <td>{formatISTDate(pastVisit.visitDate)}</td>
                   <td>{pastVisit.doctor.name}</td>
                   <td>
                     <StatusBadge status={pastVisit.status} />

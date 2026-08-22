@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { getPatientHistory } from '@/patients';
-import { requireSession, withHospitalContext } from '@/shared';
+import { formatISTDate, requireSession, withHospitalContext } from '@/shared';
 
 import { StatusBadge } from '@/app/components/StatusBadge';
 
@@ -43,7 +43,7 @@ export default async function PatientRecordPage({ params }: { params: { patientI
           visits.map((visit) => (
             <article key={visit.id}>
               <h3>
-                {visit.visitDate.toLocaleDateString()} — {visit.doctor.name}{' '}
+                {formatISTDate(visit.visitDate)} — {visit.doctor.name}{' '}
                 <StatusBadge status={visit.status} />
               </h3>
               {visit.consultationNotes && <p>Notes: {visit.consultationNotes}</p>}
@@ -55,7 +55,7 @@ export default async function PatientRecordPage({ params }: { params: { patientI
                 <ul>
                   {visit.prescriptions.map((prescription) => (
                     <li key={prescription.id}>
-                      {prescription.createdAt.toLocaleDateString()} —{' '}
+                      {formatISTDate(prescription.createdAt)} —{' '}
                       <StatusBadge status={prescription.status} /> —{' '}
                       <a href={prescription.fileUrl} target="_blank" rel="noreferrer">
                         View scan

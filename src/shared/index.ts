@@ -4,6 +4,8 @@ export { recordAuditLog } from './audit-log';
 export { createSession, destroySession, getSession, requireSession, ROLE_HOME } from './session';
 export type { Session } from './session';
 export {
+  formatISTDate,
+  formatISTDateTime,
   getISTDateOnly,
   getISTDayBoundsUTC,
   getISTMonthBoundsUTC,

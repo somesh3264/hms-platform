@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { listLowStockMedicines } from '@/inventory';
 import { listPharmacyQueue } from '@/prescriptions';
-import { requireSession, withHospitalContext } from '@/shared';
+import { formatISTDateTime, requireSession, withHospitalContext } from '@/shared';
 
 // Worklist proving FR-5.4's routing: a prescription appears here the moment
 // it's uploaded from the doctor's consultation screen, with no separate
@@ -53,7 +53,7 @@ export default async function PharmacyQueuePage() {
             <tbody>
               {queue.map((prescription) => (
                 <tr key={prescription.id}>
-                  <td>{prescription.createdAt.toLocaleString()}</td>
+                  <td>{formatISTDateTime(prescription.createdAt)}</td>
                   <td>
                     {prescription.patient.name} ({prescription.patient.patientCode})
                   </td>

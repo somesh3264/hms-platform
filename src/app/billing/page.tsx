@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { listVisitsReadyToBill, searchBills } from '@/billing';
-import { requireSession, withHospitalContext } from '@/shared';
+import { formatISTDate, requireSession, withHospitalContext } from '@/shared';
 
 import { StatusBadge } from '@/app/components/StatusBadge';
 
@@ -38,7 +38,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { q?
                   <td>
                     {visit.patient.name} ({visit.patient.patientCode})
                   </td>
-                  <td>{visit.visitDate.toLocaleDateString()}</td>
+                  <td>{formatISTDate(visit.visitDate)}</td>
                   <td>
                     <Link href={`/billing/new/${visit.id}`}>Generate bill</Link>
                   </td>
@@ -87,7 +87,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { q?
                   <td>
                     <StatusBadge status={bill.paymentStatus} />
                   </td>
-                  <td>{bill.issuedAt?.toLocaleDateString() ?? '—'}</td>
+                  <td>{bill.issuedAt ? formatISTDate(bill.issuedAt) : '—'}</td>
                   <td>
                     <Link href={`/billing/${bill.id}`}>View</Link>
                   </td>

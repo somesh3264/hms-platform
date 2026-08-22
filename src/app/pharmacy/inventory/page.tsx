@@ -1,5 +1,5 @@
 import { listMedicines } from '@/inventory';
-import { requireSession, withHospitalContext } from '@/shared';
+import { formatISTDate, requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
@@ -47,7 +47,7 @@ export default async function InventoryPage({
                 <td>{medicine.stockQuantity}</td>
                 <td>{medicine.reorderLevel}</td>
                 <td>₹{(medicine.unitPriceCents / 100).toFixed(2)}</td>
-                <td>{medicine.expiryDate ? medicine.expiryDate.toLocaleDateString() : '—'}</td>
+                <td>{medicine.expiryDate ? formatISTDate(medicine.expiryDate) : '—'}</td>
                 <td>
                   {medicine.isLowStock && <StatusBadge status="LOW STOCK" />}{' '}
                   {medicine.isExpired && <StatusBadge status="EXPIRED" />}{' '}

@@ -1,6 +1,6 @@
 import { listMedicines, searchMedicines } from '@/inventory';
 import { getPrescriptionDetail } from '@/prescriptions';
-import { requireSession, withHospitalContext } from '@/shared';
+import { formatISTDateTime, requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
@@ -46,7 +46,7 @@ export default async function DispensePrescriptionPage({
           <dt>Uploaded by</dt>
           <dd>{prescription.uploadedBy.name}</dd>
           <dt>Uploaded</dt>
-          <dd>{prescription.createdAt.toLocaleString()}</dd>
+          <dd>{formatISTDateTime(prescription.createdAt)}</dd>
         </dl>
         {/* Plain <img>, not next/image: dimensions are unknown (arbitrary
             scanned uploads) and the source is the local dev-only storage

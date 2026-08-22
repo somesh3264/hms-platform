@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { searchPatients } from '@/patients';
 import {
+  formatISTDateTime,
   getISTDayBoundsUTC,
   getISTNowDateTimeStrings,
   prisma,
@@ -274,7 +275,7 @@ export default async function FrontDeskPage({
                   {visit.patient.name} ({visit.patient.patientCode})
                 </td>
                 <td>{visit.doctor.name}</td>
-                <td>{visit.visitDate.toLocaleString()}</td>
+                <td>{formatISTDateTime(visit.visitDate)}</td>
                 <td>
                   {visit.bills.length > 0 ? (
                     <StatusBadge status="PAID" />
@@ -341,7 +342,7 @@ export default async function FrontDeskPage({
                     {visit.patient.name} ({visit.patient.patientCode})
                   </td>
                   <td>{visit.doctor.name}</td>
-                  <td>{visit.updatedAt.toLocaleString()}</td>
+                  <td>{formatISTDateTime(visit.updatedAt)}</td>
                   <td>
                     <Link href={`/front-desk/bill/${visit.id}`}>Bill for surgery/procedure</Link>
                   </td>

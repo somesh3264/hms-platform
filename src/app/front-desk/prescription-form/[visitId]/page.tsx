@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { prisma, requireSession, withHospitalContext } from '@/shared';
+import { formatISTDate, prisma, requireSession, withHospitalContext } from '@/shared';
 
 import { PrintButton } from '@/app/components/PrintButton';
 
@@ -109,7 +109,7 @@ export default async function PrescriptionFormPage({
               Age/Sex: <strong>{visit.patient.age}/{visit.patient.gender}</strong>
             </span>
             <span>
-              Date: <strong>{visit.visitDate.toLocaleDateString()}</strong>
+              Date: <strong>{formatISTDate(visit.visitDate)}</strong>
             </span>
             {visit.tokenNumber && (
               <span>

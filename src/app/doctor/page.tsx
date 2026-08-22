@@ -4,7 +4,7 @@ import type { Gender, VisitStatus } from '@prisma/client';
 
 import { listLowStockMedicines } from '@/inventory';
 import { searchPatients } from '@/patients';
-import { getISTDayBoundsUTC, requireSession, withHospitalContext } from '@/shared';
+import { formatISTDateTime, getISTDayBoundsUTC, requireSession, withHospitalContext } from '@/shared';
 import { listVisitsForDoctor } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
@@ -194,7 +194,7 @@ function VisitList({
             </td>
             <td>{visit.patient.age}</td>
             <td>{visit.patient.gender}</td>
-            <td>{visit.visitDate.toLocaleString()}</td>
+            <td>{formatISTDateTime(visit.visitDate)}</td>
             <td>
               <StatusBadge status={visit.status} />
             </td>

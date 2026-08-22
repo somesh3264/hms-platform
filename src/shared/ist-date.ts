@@ -91,3 +91,42 @@ export function getISTMonthBoundsUTC(date: Date = new Date()): { start: Date; en
   const end = new Date(`${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00.000+05:30`);
   return { start, end };
 }
+
+// Every screen that displays a stored instant (visitDate, createdAt,
+// paidAt, ...) was calling the bare `date.toLocaleString()`/
+// `toLocaleDateString()` with no timeZone -- those use the *server's own*
+// OS timezone, not IST. Local dev's Mac happens to already run in IST,
+// which is exactly why this was invisible there; the production Docker
+// container runs in UTC (no TZ configured), so every one of these was
+// showing times 5.5 hours behind what front desk/doctor/pharmacy actually
+// entered (e.g. a 5:00 PM appointment rendering as 11:30 AM) -- the same
+// underlying bug already fixed on the write side above
+// (getISTNowDateTimeStrings/parseISTDateTime), now fixed on the read/
+// display side too. `en-US` matches toLocaleString()'s own default output
+// shape (e.g. "8/22/2026, 5:00:00 PM"), so this is a drop-in replacement,
+// not a visual change -- only the timezone anchor is different.
+const IST_DATETIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: IST_TIME_ZONE,
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: true,
+});
+
+export function formatISTDateTime(date: Date): string {
+  return IST_DATETIME_FORMATTER.format(date);
+}
+
+const IST_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: IST_TIME_ZONE,
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+});
+
+export function formatISTDate(date: Date): string {
+  return IST_DATE_FORMATTER.format(date);
+}

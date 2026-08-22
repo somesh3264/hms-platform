@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { getBillDetail } from '@/billing';
-import { requireSession, withHospitalContext } from '@/shared';
+import { formatISTDate, requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { PrintButton } from '@/app/components/PrintButton';
@@ -135,7 +135,7 @@ export default async function BillDetailPage({
           <h2 className="invoice-title">Invoice</h2>
           <div className="invoice-header-right">
             <p>
-              Date: <strong>{(bill.issuedAt ?? bill.createdAt).toLocaleDateString()}</strong>
+              Date: <strong>{formatISTDate(bill.issuedAt ?? bill.createdAt)}</strong>
             </p>
             <p>
               Invoice Number: <strong>{bill.billNumber}</strong>
@@ -159,7 +159,7 @@ export default async function BillDetailPage({
                 <td>{index + 1}.</td>
                 <td>
                   {item.description}
-                  <div className="invoice-item-date">Date {item.createdAt.toLocaleDateString()}</div>
+                  <div className="invoice-item-date">Date {formatISTDate(item.createdAt)}</div>
                 </td>
                 <td>{(item.unitPriceCents / 100).toFixed(2)}</td>
                 <td>{item.quantity}</td>
@@ -184,7 +184,7 @@ export default async function BillDetailPage({
                 </thead>
                 <tbody>
                   <tr>
-                    <td>{bill.paidAt?.toLocaleDateString()}</td>
+                    <td>{bill.paidAt ? formatISTDate(bill.paidAt) : '—'}</td>
                     {/* paymentReference (UPI UTR / a cash receipt note) is
                         optional and often left blank at payment time --
                         falls back to the bill's own invoice number, which

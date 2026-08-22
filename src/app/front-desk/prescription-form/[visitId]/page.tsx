@@ -147,12 +147,6 @@ export default async function PrescriptionFormPage({
                 </span>
               )}
             </div>
-            <div className="letterhead-patient-row">
-              <span>
-                Doctor: <strong>{visit.doctor.name}</strong>
-                {visit.doctor.department ? ` — ${visit.doctor.department}` : ''}
-              </span>
-            </div>
 
             {/* Deliberately blank -- the doctor hand-writes the diagnosis
                 and medicines here, then this same page is

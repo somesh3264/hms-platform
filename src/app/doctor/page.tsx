@@ -86,6 +86,15 @@ export default async function DoctorQueuePage({
       </section>
 
       <section>
+        <h2>In consultation</h2>
+        <p>
+          So you can get back to a visit you left mid-consultation -- e.g. after logging off or a
+          dropped connection -- and mark it complete.
+        </p>
+        <VisitList visits={inConsultation} emptyLabel="No one currently in consultation." />
+      </section>
+
+      <section>
         <h2>Find a patient</h2>
         <p>
           Look up any patient by name, ID, or phone — including walk-ins or past patients not in

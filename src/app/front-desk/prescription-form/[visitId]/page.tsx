@@ -167,7 +167,7 @@ export default async function PrescriptionFormPage({
           </div>
         </div>
 
-        <p className="letterhead-footer">Disclaimer: this prescription is valid for 15 days</p>
+        <p className="letterhead-footer">Disclaimer: This prescription is valid for 15 days</p>
       </div>
     </main>
   );

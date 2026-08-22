@@ -802,8 +802,14 @@ main > section > article ul {
      screen has no such body margin to account for -- a later, explicitly
      reported bug: a prescription with all three doctors in the sidebar
      (taller than the single-doctor case this was first verified against)
-     was overflowing onto a second page by exactly this gap. */
+     was overflowing onto a second page by exactly this gap.
+     30mm (not the exact 24mm) is deliberate headroom: an emulated-viewport
+     test matched the exact 24mm figure to within a pixel, but real browser
+     print pagination rounds slightly differently, and on production this
+     was just enough to tip the disclaimer line alone onto an otherwise
+     blank second page. The extra ~6mm keeps a real safety margin instead
+     of targeting the page boundary exactly. */
   .prescription-form-page {
-    min-height: calc(100vh - 24mm);
+    min-height: calc(100vh - 30mm);
   }
 }

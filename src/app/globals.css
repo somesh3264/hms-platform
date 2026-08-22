@@ -448,11 +448,17 @@ main > section > article ul {
    near-blank second page. Backed off by 40mm rather than trimming the
    minimum needed, deliberately prioritizing "reliably fits" over
    "maximizes page usage" after two consecutive misses on this exact
-   number. flex: 1 is kept as a harmless bonus for on-screen viewing on
-   very tall windows; it is not load-bearing for print any more. */
+   number. No flex: 1 any more -- it was still present alongside this
+   min-height, and a third real-PDF check still overflowed even at 150mm.
+   The real bug: .prescription-form-page's min-height: 100vh is NOT scoped
+   to screen only, so it was still in effect during print (only the print-
+   specific *override* of it was removed earlier, not the base rule
+   itself), and flex-grow can size a flex item *past* its min-height when
+   the (unreliable, already-proven-buggy-in-print) ancestor chain reports
+   extra space to distribute. Dropping flex here removes that variable
+   entirely -- this box is now sized by min-height alone, nothing else. */
 .prescription-writing-area {
   position: relative;
-  flex: 1;
   min-height: 150mm;
   margin-top: 1rem;
   border: 1px solid var(--color-border);
@@ -803,5 +809,17 @@ main > section > article ul {
   main {
     max-width: none;
     padding: 0;
+  }
+
+  /* .prescription-form-page's base min-height: 100vh was still in effect
+     during print -- only a print-specific *override* of it was ever
+     removed, not the rule itself, so print was still inheriting vh-based
+     sizing this stylesheet has already shown behaves unpredictably in
+     Chrome's real print pagination (see .prescription-writing-area).
+     min-height: auto here means print sizing comes purely from natural
+     content flow plus that box's own explicit mm-based min-height, with no
+     vh/flex-grow involved at all. */
+  .prescription-form-page {
+    min-height: auto;
   }
 }

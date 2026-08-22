@@ -162,7 +162,7 @@ export default async function VisitDetailPage({
                           accept="image/jpeg,image/png,image/webp,application/pdf"
                           required
                         />
-                        <button type="submit">Replace (wrong scan)</button>
+                        <button type="submit">Reupload</button>
                       </form>
                     )}
                   </td>

@@ -570,13 +570,19 @@ main > section > article ul {
 .letterhead-body {
   display: flex;
   flex: 1;
-  gap: 1.5rem;
+  /* Narrowed from 1.5rem -- explicitly reported as too much dead space
+     between the sidebar and the patient-info/prescription-box column,
+     which is the one that actually needs the room. */
+  gap: 1rem;
 }
 
 .letterhead-sidebar {
-  flex: 0 0 200px;
+  /* Narrowed from 200px/1.5rem, same "give the prescription box more
+     room" report -- still comfortably fits the longest doctor name
+     ("Dr. Yogita Sheshkar") on one line. */
+  flex: 0 0 170px;
   border-right: 2px solid var(--color-accent-maroon);
-  padding-right: 1.5rem;
+  padding-right: 1rem;
 }
 
 .letterhead-sidebar-doctor {

@@ -468,10 +468,10 @@ main > section > article ul {
 .prescription-writing-area {
   position: relative;
   /* 150mm base (see above) confirmed fitting on one printed page with room
-     to spare -- three follow-up bumps since (+100px, +150px, then -100px
-     after the disclaimer overflowed onto a second page again at +250px)
-     per explicit request/report, net +150px. */
-  min-height: calc(150mm + 150px);
+     to spare -- four follow-up bumps since (+100px, +150px, -100px after
+     the disclaimer overflowed onto a second page again at +250px, then a
+     further -100px per explicit request), net +50px. */
+  min-height: calc(150mm + 50px);
   margin-top: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;

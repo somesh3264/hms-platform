@@ -1,6 +1,6 @@
 import { getPatientHistory } from '@/patients';
 import { formatISTDate, formatISTDateTime, requireSession, withHospitalContext } from '@/shared';
-import { getVisitDetail } from '@/visits';
+import { getVisitDetail, getVisitDoctorLabel } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
@@ -66,7 +66,7 @@ export default async function VisitDetailPage({
             <StatusBadge status={visit.status} />
           </dd>
           <dt>Doctor</dt>
-          <dd>{visit.doctor.name}</dd>
+          <dd>{getVisitDoctorLabel(visit)}</dd>
           <dt>Since</dt>
           <dd>{formatISTDateTime(visit.visitDate)}</dd>
         </dl>
@@ -184,7 +184,7 @@ export default async function VisitDetailPage({
               {pastVisits.map((pastVisit) => (
                 <tr key={pastVisit.id}>
                   <td>{formatISTDate(pastVisit.visitDate)}</td>
-                  <td>{pastVisit.doctor.name}</td>
+                  <td>{getVisitDoctorLabel(pastVisit)}</td>
                   <td>
                     <StatusBadge status={pastVisit.status} />
                   </td>

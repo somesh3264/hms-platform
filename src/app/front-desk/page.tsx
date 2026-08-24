@@ -9,7 +9,13 @@ import {
   requireSession,
   withHospitalContext,
 } from '@/shared';
-import { listInConsultationVisits, listRecentlyCompletedVisits, listWaitingQueue } from '@/visits';
+import {
+  getVisitDoctorLabel,
+  HOSPITAL_DOCTOR_SENTINEL,
+  listInConsultationVisits,
+  listRecentlyCompletedVisits,
+  listWaitingQueue,
+} from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
@@ -23,17 +29,24 @@ import { collectConsultationFeeAction, createVisitAction, registerPatientAction 
 // addition: he sees essentially every patient first (before any referral to
 // a specialist), so front desk doesn't need to know/pick his name
 // specifically for the common case, but can still pick him by name directly
-// too. Both options carry the same doctorId value -- a visit booked either
-// way is identical underneath and shows up in his own queue the same way;
-// only the label differs. Client-specific literal wording, not derived from
-// Hospital.name.
+// too. The "Shivgeet hospital" entry carries HOSPITAL_DOCTOR_SENTINEL, not
+// his real doctorId directly -- createVisit resolves that sentinel to his
+// real id (so the visit still shows up in his own queue) *and* records that
+// this label was picked (Visit.bookedAsHospital), so every screen showing
+// the assigned doctor for this visit can show "Shivgeet hospital" too (see
+// getVisitDoctorLabel) instead of silently reverting to his real name.
+// Client-specific literal wording, not derived from Hospital.name.
 function doctorOptions(
   doctors: { id: string; name: string; isPrimaryDoctor: boolean }[],
 ): { key: string; value: string; label: string }[] {
   return doctors.flatMap((doctor) =>
     doctor.isPrimaryDoctor
       ? [
-          { key: `${doctor.id}-hospital`, value: doctor.id, label: 'Shivgeet hospital' },
+          {
+            key: `${doctor.id}-hospital`,
+            value: HOSPITAL_DOCTOR_SENTINEL,
+            label: 'Shivgeet hospital',
+          },
           { key: doctor.id, value: doctor.id, label: doctor.name },
         ]
       : [{ key: doctor.id, value: doctor.id, label: doctor.name }],
@@ -296,7 +309,7 @@ export default async function FrontDeskPage({
                 <td>
                   {visit.patient.name} ({visit.patient.patientCode})
                 </td>
-                <td>{visit.doctor.name}</td>
+                <td>{getVisitDoctorLabel(visit)}</td>
                 <td>{formatISTDateTime(visit.visitDate)}</td>
                 <td>
                   {visit.bills.length > 0 ? (
@@ -365,7 +378,7 @@ export default async function FrontDeskPage({
                   <td>
                     {visit.patient.name} ({visit.patient.patientCode})
                   </td>
-                  <td>{visit.doctor.name}</td>
+                  <td>{getVisitDoctorLabel(visit)}</td>
                   <td>{formatISTDateTime(visit.visitDate)}</td>
                   <td>
                     <Link href={`/front-desk/visit/${visit.id}`}>
@@ -412,7 +425,7 @@ export default async function FrontDeskPage({
                   <td>
                     {visit.patient.name} ({visit.patient.patientCode})
                   </td>
-                  <td>{visit.doctor.name}</td>
+                  <td>{getVisitDoctorLabel(visit)}</td>
                   <td>{formatISTDateTime(visit.updatedAt)}</td>
                   <td>
                     <Link href={`/front-desk/visit/${visit.id}`}>

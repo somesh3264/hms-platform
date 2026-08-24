@@ -208,6 +208,17 @@ model Visit {
   department String?
   status     VisitStatus @default(WAITING)
 
+  // True when front desk picked the primary doctor's "Shivgeet hospital"
+  // dropdown entry rather than his own name (see User.isPrimaryDoctor) --
+  // doctorId is the same real user either way (so the visit still shows up
+  // in his own queue), but this remembers which label front desk actually
+  // picked, so every screen that displays the assigned doctor's name for
+  // this visit can show "Shivgeet hospital" instead of his real name,
+  // consistent with what was selected at booking time. A later, explicitly
+  // requested addition -- the dropdown choice wasn't being reflected
+  // anywhere past the dropdown itself.
+  bookedAsHospital Boolean @default(false) @map("booked_as_hospital")
+
   // Free-text notes captured by the doctor alongside the scanned prescription (FR-4.4).
   consultationNotes String? @map("consultation_notes")
 

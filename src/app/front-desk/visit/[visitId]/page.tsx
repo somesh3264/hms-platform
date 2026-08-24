@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { formatISTDateTime, requireSession, withHospitalContext } from '@/shared';
+import { getVisitDoctorLabel } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
@@ -43,6 +44,7 @@ export default async function VisitCreatedPage({
         id: true,
         tokenNumber: true,
         status: true,
+        bookedAsHospital: true,
         patient: { select: { name: true, patientCode: true } },
         doctor: { select: { name: true } },
         bills: {
@@ -60,7 +62,7 @@ export default async function VisitCreatedPage({
         {visit.patient.name} ({visit.patient.patientCode})
       </h1>
       <p>
-        {visit.doctor.name}
+        {getVisitDoctorLabel(visit)}
         {visit.tokenNumber ? ` — Token #${visit.tokenNumber}` : ''}
       </p>
 

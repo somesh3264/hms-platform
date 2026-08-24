@@ -831,22 +831,21 @@ main > section > article ul {
      removed, not the rule itself, so print was still inheriting vh-based
      sizing this stylesheet has already shown behaves unpredictably in
      Chrome's real print pagination (see .prescription-writing-area).
-     Fixed to an explicit mm value now (not auto, not vh) per an explicit
-     report that the disclaimer sat right after the writing area with a
-     visible gap of blank page below it -- 268mm, a 5mm safety margin below
-     the usable A4 page height (297mm - 12mm top/bottom margins = 273mm),
-     not a guess: a tighter 272mm measured exactly on-target (1mm to spare)
-     in a simulated check, too close to trust against a real printer's own
-     rounding given this exact bug's own history of round-tripping through
-     "verified" values that still overflowed in a real PDF. .letterhead's
-     own flex:1 (and .letterhead-body's, one level down) already existed to
-     absorb exactly this kind of extra height, they just had nothing to
-     grow against before since this was auto; with a real height to fill,
-     that same existing flex chain pushes .letterhead-footer down near the
-     bottom of the page on its own, still using only physical units end to
-     end so it doesn't reintroduce the vh-based unreliability this rule was
-     originally written to remove. */
+     Fixed to an explicit mm value now (not auto, not vh), physical units
+     only, consistent with why min-height:auto was introduced here in the
+     first place. .letterhead's own flex:1 (and .letterhead-body's, one
+     level down) already existed to absorb exactly this kind of extra
+     height, they just had nothing to grow against before since this was
+     auto; with a real height to fill, that same existing flex chain pushes
+     .letterhead-footer down near the bottom of the page on its own. 258mm
+     is a later, explicitly requested -10mm nudge back up from an earlier
+     268mm (itself a 5mm safety margin below the 273mm usable A4 page
+     height (297mm - 12mm top/bottom margins) -- a tighter 272mm measured
+     exactly on-target, 1mm to spare, too close to trust against a real
+     printer's own rounding given this exact bug's own history of
+     round-tripping through "verified" values that still overflowed in a
+     real PDF) after the disclaimer sat too close to the very bottom edge. */
   .prescription-form-page {
-    min-height: 268mm;
+    min-height: 258mm;
   }
 }

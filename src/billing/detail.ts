@@ -1,7 +1,11 @@
 import type { Prisma } from '@prisma/client';
 
 // Full bill detail for the printable view (FR-7.6): hospital branding
-// (name/logo/GSTIN), patient/visit, and line items.
+// (name/logo/GSTIN), patient, and line items. Used to also select the
+// visit's doctor for a "By: Dr. X" line on the printed bill -- dropped per
+// a later, explicitly requested change (the hospital doesn't want the
+// treating doctor's name on any bill), so the visit relation itself is no
+// longer selected here at all.
 export async function getBillDetail(
   tx: Prisma.TransactionClient,
   params: { hospitalId: string; billId: string },
@@ -11,14 +15,6 @@ export async function getBillDetail(
     include: {
       hospital: true,
       patient: true,
-      visit: {
-        select: {
-          id: true,
-          visitDate: true,
-          department: true,
-          doctor: { select: { name: true } },
-        },
-      },
       lineItems: { orderBy: { createdAt: 'asc' } },
     },
   });

@@ -47,22 +47,24 @@ function formatRupees(cents: number): string {
 // Layout modeled on a reference invoice format the hospital provided (a
 // later, explicitly requested change from the original simpler dl/table
 // layout): a two-column header (branding on the left, contact/registration
-// on the right), a two-column patient block, a "By: Dr. X" line, the line
-// items table, and a totals block reporting Amount Received/Balance Amount
-// rather than just a payment-status badge. GSTIN isn't part of the
-// reference format but already exists as real hospital data (FR-7.6 calls
-// for it on the printable bill) -- kept in the header's right column rather
-// than silently dropped.
+// on the right), a two-column patient block, the line items table, and a
+// totals block reporting Amount Received/Balance Amount rather than just a
+// payment-status badge. GSTIN isn't part of the reference format but
+// already exists as real hospital data (FR-7.6 calls for it on the
+// printable bill) -- kept in the header's right column rather than silently
+// dropped. A "By: Dr. X" line used to appear here too (for non-medicine
+// bills only); dropped entirely per a later, explicitly requested change --
+// the hospital doesn't want the treating doctor's name on any bill.
 //
 // A bill carrying a MEDICINE line item (see isMedicineBill below) is a
 // transaction of the hospital's in-house medical store, a separate
 // registered entity from the hospital itself -- shows that store's own
 // name/GSTIN (Hospital.pharmacyName/pharmacyGstin) instead of the
-// hospital's, omits the hospital's clinical-establishment registration
-// number (belongs to the hospital, not the store), and omits the "By: Dr.
-// X" line (a later, explicitly requested set of changes, kept deliberately
-// minimal per that same request -- everything else about the bill stays
-// exactly as it is for a medicine bill).
+// hospital's, and omits the hospital's clinical-establishment registration
+// number (belongs to the hospital, not the store) -- a later, explicitly
+// requested set of changes, kept deliberately minimal per that same request
+// -- everything else about the bill stays exactly as it is for a medicine
+// bill.
 export default async function BillDetailPage({
   params,
   searchParams,
@@ -108,11 +110,7 @@ export default async function BillDetailPage({
                 arbitrary source). */}
             {bill.hospital.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={bill.hospital.logoUrl}
-                alt={billerName}
-                className="invoice-logo"
-              />
+              <img src={bill.hospital.logoUrl} alt={billerName} className="invoice-logo" />
             )}
             <div>
               <h1>{billerName}</h1>
@@ -147,17 +145,6 @@ export default async function BillDetailPage({
         </div>
 
         <hr className="invoice-rule" />
-
-        {/* bill.visit is only ever null for a Counter Sale
-            (src/billing/counter-sale.ts), which is always a medicine bill
-            (isMedicineBill true) -- the explicit bill.visit check here is
-            for TypeScript's benefit as much as runtime safety, since it
-            can't infer that correlation from isMedicineBill alone. */}
-        {!isMedicineBill && bill.visit?.doctor && (
-          <p>
-            By: <strong>{bill.visit.doctor.name}</strong>
-          </p>
-        )}
 
         <div className="invoice-header">
           <h2 className="invoice-title">Invoice</h2>

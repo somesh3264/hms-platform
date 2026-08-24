@@ -41,14 +41,7 @@ body {
 
 body {
   margin: 0;
-  font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
 }
 
@@ -493,7 +486,9 @@ main > section > article ul {
   transform: translate(-50%, -50%);
   max-width: 60%;
   max-height: 60%;
-  opacity: 0.08;
+  /* Bumped up from 0.08 per explicit report that it printed too faint to
+     read as a watermark at all. */
+  opacity: 0.15;
   pointer-events: none;
 }
 
@@ -542,6 +537,14 @@ main > section > article ul {
   white-space: nowrap;
   color: var(--color-text-muted);
   font-size: 0.9rem;
+}
+
+/* Matches the actual logo mark's own red -- colorpicked directly from the
+   uploaded logo file (its dominant reddish pixel, #a13328), not
+   approximated, since this needs to look like part of the same brand mark
+   sitting right next to it in the header. */
+.letterhead-hospital-name-accent {
+  color: #a13328;
 }
 
 .letterhead-logo {
@@ -828,10 +831,22 @@ main > section > article ul {
      removed, not the rule itself, so print was still inheriting vh-based
      sizing this stylesheet has already shown behaves unpredictably in
      Chrome's real print pagination (see .prescription-writing-area).
-     min-height: auto here means print sizing comes purely from natural
-     content flow plus that box's own explicit mm-based min-height, with no
-     vh/flex-grow involved at all. */
+     Fixed to an explicit mm value now (not auto, not vh) per an explicit
+     report that the disclaimer sat right after the writing area with a
+     visible gap of blank page below it -- 268mm, a 5mm safety margin below
+     the usable A4 page height (297mm - 12mm top/bottom margins = 273mm),
+     not a guess: a tighter 272mm measured exactly on-target (1mm to spare)
+     in a simulated check, too close to trust against a real printer's own
+     rounding given this exact bug's own history of round-tripping through
+     "verified" values that still overflowed in a real PDF. .letterhead's
+     own flex:1 (and .letterhead-body's, one level down) already existed to
+     absorb exactly this kind of extra height, they just had nothing to
+     grow against before since this was auto; with a real height to fill,
+     that same existing flex chain pushes .letterhead-footer down near the
+     bottom of the page on its own, still using only physical units end to
+     end so it doesn't reintroduce the vh-based unreliability this rule was
+     originally written to remove. */
   .prescription-form-page {
-    min-height: auto;
+    min-height: 268mm;
   }
 }

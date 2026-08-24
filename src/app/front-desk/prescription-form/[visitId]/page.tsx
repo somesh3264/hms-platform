@@ -61,6 +61,27 @@ async function loadPrescriptionForm(hospitalId: string, visitId: string) {
   });
 }
 
+// The real letterhead/logo renders "Piles" in a dark red matching the
+// hospital's own mark -- a later, explicitly requested addition. Splits on
+// the literal word rather than a generic markup convention, since
+// Hospital.name is a plain string and this is client-specific styling (the
+// word "Piles" won't appear in another tenant's name); no-ops harmlessly if
+// it's absent.
+function HospitalNameWithAccent({ name }: { name: string }) {
+  const accentWord = 'Piles';
+  const idx = name.indexOf(accentWord);
+  if (idx === -1) {
+    return <>{name}</>;
+  }
+  return (
+    <>
+      {name.slice(0, idx)}
+      <span className="letterhead-hospital-name-accent">{accentWord}</span>
+      {name.slice(idx + accentWord.length)}
+    </>
+  );
+}
+
 // Same "download filename should identify the patient" fix as the bill
 // (src/app/billing/[billId]/page.tsx) -- see that file's generateMetadata
 // for why this is enough on its own.
@@ -76,11 +97,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function PrescriptionFormPage({
-  params,
-}: {
-  params: { visitId: string };
-}) {
+export default async function PrescriptionFormPage({ params }: { params: { visitId: string } }) {
   const { hospitalId } = await requireSession(['FRONT_DESK']);
 
   const [{ visit, doctors }, hospital] = await Promise.all([
@@ -107,12 +124,16 @@ export default async function PrescriptionFormPage({
               <img src={hospital.logoUrl} alt={hospital.name} className="letterhead-logo" />
             )}
             <div>
-              <h1>{hospital.name}</h1>
+              <h1>
+                <HospitalNameWithAccent name={hospital.name} />
+              </h1>
               {hospital.address && <p>Address: {hospital.address}</p>}
             </div>
           </div>
           {hospital.registrationNumber && (
-            <p className="letterhead-registration">Registration no: {hospital.registrationNumber}</p>
+            <p className="letterhead-registration">
+              Registration no: {hospital.registrationNumber}
+            </p>
           )}
         </div>
 
@@ -134,7 +155,10 @@ export default async function PrescriptionFormPage({
                 Pt. Name: <strong>{visit.patient.name}</strong> ({visit.patient.patientCode})
               </span>
               <span>
-                Age/Sex: <strong>{visit.patient.age}/{visit.patient.gender}</strong>
+                Age/Sex:{' '}
+                <strong>
+                  {visit.patient.age}/{visit.patient.gender}
+                </strong>
               </span>
               <span>
                 Date: <strong>{formatISTDate(visit.visitDate)}</strong>

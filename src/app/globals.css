@@ -852,15 +852,20 @@ main > section > article ul {
      level down) already existed to absorb exactly this kind of extra
      height, they just had nothing to grow against before since this was
      auto; with a real height to fill, that same existing flex chain pushes
-     .letterhead-footer down near the bottom of the page on its own. 258mm
-     is a later, explicitly requested -10mm nudge back up from an earlier
-     268mm (itself a 5mm safety margin below the 273mm usable A4 page
-     height (297mm - 12mm top/bottom margins) -- a tighter 272mm measured
-     exactly on-target, 1mm to spare, too close to trust against a real
-     printer's own rounding given this exact bug's own history of
-     round-tripping through "verified" values that still overflowed in a
-     real PDF) after the disclaimer sat too close to the very bottom edge. */
+     .letterhead-footer down near the bottom of the page on its own.
+
+     240mm, not the earlier 258mm -- recalculated after the printer's own
+     print dialog (macOS) showed its *real* margins for A4: top 6.35mm,
+     bottom 14.46mm. @page{margin:0} above only zeroes what the browser
+     itself would reserve; it can't override the printer driver's own
+     non-printable hardware border, which body's 12mm margin then stacks
+     on top of -- so the true usable height is 297mm - (6.35+12) top -
+     (14.46+12) bottom = 252.19mm, not the naive 297 - 24 = 273mm every
+     earlier measurement in this file assumed (every one of them ran
+     through a browser tab, which is always exactly 96dpi with no
+     hardware margin of its own -- none of them could have caught this).
+     240mm leaves a real ~12mm margin below that recalculated ceiling. */
   .prescription-form-page {
-    min-height: 258mm;
+    min-height: 240mm;
   }
 }

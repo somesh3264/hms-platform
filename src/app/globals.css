@@ -463,8 +463,17 @@ main > section > article ul {
   /* 150mm base (see above) confirmed fitting on one printed page with room
      to spare -- four follow-up bumps since (+100px, +150px, -100px after
      the disclaimer overflowed onto a second page again at +250px, then a
-     further -100px per explicit request), net +50px. */
-  min-height: calc(150mm + 50px);
+     further -100px per explicit request), net +50px -- converted here to
+     its pure-mm equivalent (163mm) rather than left as calc(150mm + 50px).
+     A real printed export still came out as 2 pages (page 2 completely
+     blank) even after every screen/simulated check showed it fitting on
+     one -- the one place in this file still mixing mm with px in a print-
+     only calc(), which risks a real print/PDF engine computing that px
+     term against actual device DPI instead of the CSS reference pixel
+     (96px = 1in), unlike every check run against this page so far, which
+     was always real 96dpi and so could never have caught it. Physical
+     units only, no mixing, closes that gap. */
+  min-height: 163mm;
   margin-top: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;

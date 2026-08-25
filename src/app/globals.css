@@ -627,7 +627,11 @@ main > section > article ul {
   padding-top: 0.75rem;
   border-top: 1px solid var(--color-border);
   text-align: center;
-  font-size: 0.8rem;
+  /* Bumped up from 0.8rem -- a real printed copy showed it too small to
+     read comfortably; now bigger than the sidebar/registration-number
+     text (0.9rem) instead of smaller, in line with the other bumped-up
+     print sizing in this file (the watermark opacity fix nearby). */
+  font-size: 1.1rem;
   color: var(--color-accent-maroon);
 }
 
@@ -854,7 +858,7 @@ main > section > article ul {
      auto; with a real height to fill, that same existing flex chain pushes
      .letterhead-footer down near the bottom of the page on its own.
 
-     240mm, not the earlier 258mm -- recalculated after the printer's own
+     247mm, not the earlier 240mm -- recalculated after the printer's own
      print dialog (macOS) showed its *real* margins for A4: top 6.35mm,
      bottom 14.46mm. @page{margin:0} above only zeroes what the browser
      itself would reserve; it can't override the printer driver's own
@@ -864,8 +868,13 @@ main > section > article ul {
      earlier measurement in this file assumed (every one of them ran
      through a browser tab, which is always exactly 96dpi with no
      hardware margin of its own -- none of them could have caught this).
-     240mm leaves a real ~12mm margin below that recalculated ceiling. */
+     A real printed copy at 240mm (12.2mm margin below that ceiling) came
+     out with the disclaimer sitting well short of the true bottom edge,
+     not centered or overflowing -- that gap was this deliberately
+     conservative margin doing exactly what it was for, just more of it
+     than wanted. 247mm closes most of that gap, leaving a real ~5mm
+     margin rather than 12mm. */
   .prescription-form-page {
-    min-height: 240mm;
+    min-height: 247mm;
   }
 }

@@ -4,6 +4,7 @@ import { getBillDetail } from '@/billing';
 import { formatISTDate, requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
+import { HospitalName } from '@/app/components/HospitalName';
 import { PrintButton } from '@/app/components/PrintButton';
 import { UpiQrCode } from '@/app/components/UpiQrCode';
 
@@ -113,7 +114,9 @@ export default async function BillDetailPage({
               <img src={bill.hospital.logoUrl} alt={billerName} className="invoice-logo" />
             )}
             <div>
-              <h1>{billerName}</h1>
+              <h1>
+                <HospitalName name={billerName} />
+              </h1>
               {bill.hospital.address && <p>{bill.hospital.address}</p>}
               {bill.hospital.website && <p>{bill.hospital.website}</p>}
             </div>

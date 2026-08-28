@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { formatISTDate, prisma, requireSession, withHospitalContext } from '@/shared';
 
+import { HospitalName } from '@/app/components/HospitalName';
 import { PrintButton } from '@/app/components/PrintButton';
 
 // Digitizes one specific step of the hospital's existing paper process (a
@@ -61,29 +62,6 @@ async function loadPrescriptionForm(hospitalId: string, visitId: string) {
   });
 }
 
-// The real letterhead/logo renders "Piles" in a dark red against the rest
-// of the name in the logo's own blue (see .letterhead-hospital-name /
-// .letterhead-hospital-name-accent) -- a later, explicitly requested
-// addition. Splits on the literal word rather than a generic markup
-// convention, since Hospital.name is a plain string and this is
-// client-specific styling (the word "Piles" won't appear in another
-// tenant's name); no-ops harmlessly if it's absent (the rest of the name
-// still gets the blue from the parent <h1>'s own class).
-function HospitalNameWithAccent({ name }: { name: string }) {
-  const accentWord = 'Piles';
-  const idx = name.indexOf(accentWord);
-  if (idx === -1) {
-    return <>{name}</>;
-  }
-  return (
-    <>
-      {name.slice(0, idx)}
-      <span className="letterhead-hospital-name-accent">{accentWord}</span>
-      {name.slice(idx + accentWord.length)}
-    </>
-  );
-}
-
 // Same "download filename should identify the patient" fix as the bill
 // (src/app/billing/[billId]/page.tsx) -- see that file's generateMetadata
 // for why this is enough on its own.
@@ -126,8 +104,8 @@ export default async function PrescriptionFormPage({ params }: { params: { visit
               <img src={hospital.logoUrl} alt={hospital.name} className="letterhead-logo" />
             )}
             <div>
-              <h1 className="letterhead-hospital-name">
-                <HospitalNameWithAccent name={hospital.name} />
+              <h1>
+                <HospitalName name={hospital.name} />
               </h1>
               {hospital.address && <p>Address: {hospital.address}</p>}
             </div>

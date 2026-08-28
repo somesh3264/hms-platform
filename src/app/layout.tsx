@@ -5,6 +5,8 @@ import type { UserRole } from '@prisma/client';
 
 import { getSession, prisma } from '@/shared';
 
+import { HospitalName } from '@/app/components/HospitalName';
+
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -54,7 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={hospital.logoUrl} alt={hospital.name} className="app-header-logo" />
               )}
-              <span>{hospital?.name ?? 'HMS Platform'}</span>
+              <span>{hospital ? <HospitalName name={hospital.name} /> : 'HMS Platform'}</span>
             </div>
 
             <nav className="app-nav">

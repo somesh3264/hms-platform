@@ -1,5 +1,7 @@
 import { resolveCurrentHospital } from '@/tenants';
 
+import { HospitalName } from '@/app/components/HospitalName';
+
 export default async function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
   const hospital = await resolveCurrentHospital();
 
@@ -24,7 +26,9 @@ export default async function LoginPage({ searchParams }: { searchParams: { erro
           // eslint-disable-next-line @next/next/no-img-element
           <img src={hospital.logoUrl} alt={hospital.name} className="auth-card-logo" />
         )}
-        <h1>{hospital.name}</h1>
+        <h1>
+          <HospitalName name={hospital.name} />
+        </h1>
         <p>Sign in to continue.</p>
 
         {searchParams.error && <p className="alert alert-error">Invalid email or password.</p>}

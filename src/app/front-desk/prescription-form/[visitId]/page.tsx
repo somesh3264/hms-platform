@@ -61,12 +61,14 @@ async function loadPrescriptionForm(hospitalId: string, visitId: string) {
   });
 }
 
-// The real letterhead/logo renders "Piles" in a dark red matching the
-// hospital's own mark -- a later, explicitly requested addition. Splits on
-// the literal word rather than a generic markup convention, since
-// Hospital.name is a plain string and this is client-specific styling (the
-// word "Piles" won't appear in another tenant's name); no-ops harmlessly if
-// it's absent.
+// The real letterhead/logo renders "Piles" in a dark red against the rest
+// of the name in the logo's own blue (see .letterhead-hospital-name /
+// .letterhead-hospital-name-accent) -- a later, explicitly requested
+// addition. Splits on the literal word rather than a generic markup
+// convention, since Hospital.name is a plain string and this is
+// client-specific styling (the word "Piles" won't appear in another
+// tenant's name); no-ops harmlessly if it's absent (the rest of the name
+// still gets the blue from the parent <h1>'s own class).
 function HospitalNameWithAccent({ name }: { name: string }) {
   const accentWord = 'Piles';
   const idx = name.indexOf(accentWord);
@@ -124,7 +126,7 @@ export default async function PrescriptionFormPage({ params }: { params: { visit
               <img src={hospital.logoUrl} alt={hospital.name} className="letterhead-logo" />
             )}
             <div>
-              <h1>
+              <h1 className="letterhead-hospital-name">
                 <HospitalNameWithAccent name={hospital.name} />
               </h1>
               {hospital.address && <p>Address: {hospital.address}</p>}

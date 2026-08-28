@@ -552,6 +552,13 @@ main > section > article ul {
    uploaded logo file (its dominant reddish pixel, #a13328), not
    approximated, since this needs to look like part of the same brand mark
    sitting right next to it in the header. */
+/* Matches the logo mark's own blue -- colorpicked directly from the
+   uploaded logo file (its dominant bluish pixel, #3a4b87), same approach
+   as the red "Piles" accent below. */
+.letterhead-hospital-name {
+  color: #3a4b87;
+}
+
 .letterhead-hospital-name-accent {
   color: #a13328;
 }

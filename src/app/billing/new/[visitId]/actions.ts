@@ -17,6 +17,8 @@ export async function generateBillAction(formData: FormData): Promise<void> {
     const serviceDescription = String(formData.get('serviceDescription') ?? '').trim();
     const serviceFeeRupees = Number(formData.get('serviceFeeRupees'));
     const discountRupees = Number(formData.get('discountRupees') ?? 0);
+    const discountPercentRaw = String(formData.get('discountPercent') ?? '').trim();
+    const discountPercent = discountPercentRaw ? Number(discountPercentRaw) : undefined;
     const taxPercent = Number(formData.get('taxPercent'));
 
     const serviceCharges =
@@ -31,6 +33,10 @@ export async function generateBillAction(formData: FormData): Promise<void> {
         visitId,
         serviceCharges,
         discountCents: Number.isFinite(discountRupees) ? Math.round(discountRupees * 100) : 0,
+        discountPercent:
+          discountPercent !== undefined && Number.isFinite(discountPercent)
+            ? discountPercent
+            : undefined,
         taxPercent: Number.isFinite(taxPercent) ? taxPercent : undefined,
       }),
     );

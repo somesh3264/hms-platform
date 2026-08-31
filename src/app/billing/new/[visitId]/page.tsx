@@ -76,6 +76,11 @@ export default async function NewBillPage({
             Service charge amount (₹)
             <input type="number" name="serviceFeeRupees" min={0} step="0.01" />
           </label>
+          <p>Enter either a discount percentage or a cash discount below, not both.</p>
+          <label>
+            Discount percentage (%)
+            <input type="number" name="discountPercent" min={0} max={100} step="0.01" />
+          </label>
           <label>
             Discount (₹)
             <input type="number" name="discountRupees" min={0} step="0.01" defaultValue={0} />

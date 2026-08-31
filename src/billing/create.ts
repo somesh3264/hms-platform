@@ -17,6 +17,7 @@ export interface CreateBillInput {
   visitId: string;
   serviceCharges?: ServiceChargeInput[];
   discountCents?: number;
+  discountPercent?: number;
   taxPercent?: number;
 }
 
@@ -65,7 +66,25 @@ export async function createBill(
     throw new Error('Nothing to bill: no dispensed items or service charges for this visit.');
   }
 
-  const discountCents = input.discountCents ?? 0;
+  // Discount percentage (a later, explicitly requested addition) and the
+  // existing flat cash discount are deliberately mutually exclusive, not
+  // stacked -- picking one is simpler for front-of-till staff and avoids a
+  // bill silently getting double-discounted if both happened to be filled
+  // in. Resolved here (not by the caller) so the percentage is always a
+  // percentage of the *real* subtotal computed just above, not a stale
+  // figure the UI displayed earlier.
+  if (input.discountCents && input.discountPercent) {
+    throw new Error('Enter either a discount percentage or a cash discount, not both.');
+  }
+  if (
+    input.discountPercent !== undefined &&
+    (input.discountPercent < 0 || input.discountPercent > 100)
+  ) {
+    throw new Error('Discount percentage must be between 0 and 100.');
+  }
+  const discountCents = input.discountPercent
+    ? Math.round(subtotalCents * (input.discountPercent / 100))
+    : (input.discountCents ?? 0);
   const taxPercent = input.taxPercent ?? DEFAULT_TAX_PERCENT;
   const taxableCents = Math.max(0, subtotalCents - discountCents);
   const taxCents = Math.round(taxableCents * (taxPercent / 100));

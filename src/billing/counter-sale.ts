@@ -125,6 +125,7 @@ export interface FinalizeCounterSaleInput {
   actorId: string;
   billId: string;
   discountCents?: number;
+  discountPercent?: number;
   taxPercent?: number;
   paymentMethod: PaymentMethod;
   paymentReference?: string;
@@ -158,7 +159,24 @@ export async function finalizeCounterSale(
     throw new Error('Cannot finalize a sale before at least one medicine has been dispensed.');
   }
 
-  const discountCents = input.discountCents ?? 0;
+  // Discount percentage (a later, explicitly requested addition, matching
+  // the same option on the medicine-bill-generation screen -- see
+  // createBill) and the existing flat cash discount are mutually
+  // exclusive, not stacked -- same reasoning as there. Resolved against
+  // bill.subtotalCents, which addCounterSaleItem already keeps accurate as
+  // items are dispensed, so this is the real subtotal, not a stale figure.
+  if (input.discountCents && input.discountPercent) {
+    throw new Error('Enter either a discount percentage or a cash discount, not both.');
+  }
+  if (
+    input.discountPercent !== undefined &&
+    (input.discountPercent < 0 || input.discountPercent > 100)
+  ) {
+    throw new Error('Discount percentage must be between 0 and 100.');
+  }
+  const discountCents = input.discountPercent
+    ? Math.round(bill.subtotalCents * (input.discountPercent / 100))
+    : (input.discountCents ?? 0);
   const taxPercent = input.taxPercent ?? DEFAULT_TAX_PERCENT;
   const taxableCents = Math.max(0, bill.subtotalCents - discountCents);
   const taxCents = Math.round(taxableCents * (taxPercent / 100));

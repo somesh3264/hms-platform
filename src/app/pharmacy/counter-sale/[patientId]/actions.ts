@@ -50,6 +50,8 @@ export async function finalizeCounterSaleAction(formData: FormData): Promise<voi
       throw new Error('Nothing dispensed yet -- dispense at least one medicine first.');
     }
     const discountRupees = Number(formData.get('discountRupees') ?? 0);
+    const discountPercentRaw = String(formData.get('discountPercent') ?? '').trim();
+    const discountPercent = discountPercentRaw ? Number(discountPercentRaw) : undefined;
     const taxPercent = Number(formData.get('taxPercent') ?? 0);
     const paymentMethod = optionalString(formData, 'paymentMethod');
     if (!paymentMethod) {
@@ -62,6 +64,10 @@ export async function finalizeCounterSaleAction(formData: FormData): Promise<voi
         actorId,
         billId,
         discountCents: Number.isFinite(discountRupees) ? Math.round(discountRupees * 100) : 0,
+        discountPercent:
+          discountPercent !== undefined && Number.isFinite(discountPercent)
+            ? discountPercent
+            : undefined,
         taxPercent: Number.isFinite(taxPercent) ? taxPercent : undefined,
         paymentMethod: paymentMethod as PaymentMethod,
         paymentReference: optionalString(formData, 'paymentReference'),

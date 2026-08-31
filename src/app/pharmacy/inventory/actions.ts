@@ -1,6 +1,6 @@
 'use server';
 
-import { addMedicineStock } from '@/inventory';
+import { addMedicineStock, setMedicineActive, updateMedicineName } from '@/inventory';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 
 function optionalString(formData: FormData, key: string): string | undefined {
@@ -45,5 +45,54 @@ export async function addMedicineStockAction(formData: FormData): Promise<void> 
 
   redirectWithFlash('/pharmacy/inventory', {
     success: merged ? 'Stock added to existing medicine.' : 'New medicine added to inventory.',
+  });
+}
+
+export async function renameMedicineAction(formData: FormData): Promise<void> {
+  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
+
+  try {
+    const medicineId = optionalString(formData, 'medicineId');
+    const name = optionalString(formData, 'name');
+    if (!medicineId || !name) {
+      throw new Error('Missing medicineId or name.');
+    }
+    await withHospitalContext(hospitalId, (tx) =>
+      updateMedicineName(tx, { hospitalId, actorId, medicineId, name }),
+    );
+  } catch (err) {
+    redirectWithFlash('/pharmacy/inventory', {
+      error: err instanceof Error ? err.message : 'Failed to rename medicine.',
+    });
+  }
+
+  redirectWithFlash('/pharmacy/inventory', { success: 'Medicine renamed.' });
+}
+
+// Shared by both the "Deactivate" and "Reactivate" buttons -- a hidden
+// isActive field distinguishes which one was clicked (see
+// Medicine.isActive in prisma/schema.prisma for why this is a toggle
+// rather than a real delete).
+export async function setMedicineActiveAction(formData: FormData): Promise<void> {
+  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
+
+  let isActive = false;
+  try {
+    const medicineId = optionalString(formData, 'medicineId');
+    if (!medicineId) {
+      throw new Error('Missing medicineId.');
+    }
+    isActive = formData.get('isActive') === 'true';
+    await withHospitalContext(hospitalId, (tx) =>
+      setMedicineActive(tx, { hospitalId, actorId, medicineId, isActive }),
+    );
+  } catch (err) {
+    redirectWithFlash('/pharmacy/inventory', {
+      error: err instanceof Error ? err.message : 'Failed to update medicine.',
+    });
+  }
+
+  redirectWithFlash('/pharmacy/inventory', {
+    success: isActive ? 'Medicine reactivated.' : 'Medicine deactivated.',
   });
 }

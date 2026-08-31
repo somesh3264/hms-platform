@@ -58,6 +58,12 @@ export async function addMedicineStock(
       data: {
         stockQuantity: { increment: input.quantity },
         unitPriceCents: input.unitPriceCents,
+        // Restocking a medicine staff had previously deactivated is a clear
+        // signal it's back in use -- reactivate it rather than leaving it
+        // hidden from the dispense/counter-sale catalogs despite now having
+        // stock again. The dedupe match above doesn't filter on isActive
+        // for exactly this reason: it needs to find this row regardless.
+        isActive: true,
         ...(input.expiryDate !== undefined ? { expiryDate: input.expiryDate } : {}),
         ...(input.saltComposition !== undefined ? { saltComposition: input.saltComposition } : {}),
       },

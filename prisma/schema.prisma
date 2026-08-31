@@ -306,6 +306,16 @@ model Medicine {
   stockQuantity   Int       @default(0) @map("stock_quantity")
   reorderLevel    Int       @default(0) @map("reorder_level")
 
+  // Soft-delete (a later, explicitly requested addition): Medicine rows are
+  // referenced by BillLineItem (past dispensing/counter-sale records), so a
+  // hard delete would either have to be blocked once ever used or orphan
+  // billing history -- same reasoning as User.isActive already elsewhere in
+  // this app. false hides it from the dispense/counter-sale catalogs
+  // (listMedicines/searchMedicines default to active-only) without
+  // touching anything already billed against it; the inventory admin
+  // screen still shows it so staff can reactivate.
+  isActive Boolean @default(true) @map("is_active")
+
   // Per-medicine override of Hospital.lowStockThresholdPercent (FR-6.7).
   lowStockThresholdPercent Int? @map("low_stock_threshold_percent")
 

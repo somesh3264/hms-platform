@@ -4,7 +4,7 @@ import { formatISTDate, requireSession, withHospitalContext } from '@/shared';
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
-import { addMedicineStockAction } from './actions';
+import { addMedicineStockAction, renameMedicineAction, setMedicineActiveAction } from './actions';
 
 export default async function InventoryPage({
   searchParams,
@@ -13,7 +13,13 @@ export default async function InventoryPage({
 }) {
   const { hospitalId } = await requireSession(['PHARMACIST']);
 
-  const medicines = await withHospitalContext(hospitalId, (tx) => listMedicines(tx, hospitalId));
+  // includeInactive: true -- unlike every other listMedicines caller
+  // (dispense/counter-sale catalogs, low-stock alerts), this screen is
+  // where a deactivated medicine needs to still be visible, so staff can
+  // reactivate it.
+  const medicines = await withHospitalContext(hospitalId, (tx) =>
+    listMedicines(tx, hospitalId, { includeInactive: true }),
+  );
 
   return (
     <main>
@@ -32,17 +38,28 @@ export default async function InventoryPage({
               <th>Unit price</th>
               <th>Expiry</th>
               <th>Flags</th>
+              <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {medicines.length === 0 && (
               <tr>
-                <td colSpan={7}>No medicines in inventory.</td>
+                <td colSpan={9}>No medicines in inventory.</td>
               </tr>
             )}
             {medicines.map((medicine) => (
-              <tr key={medicine.id}>
-                <td>{medicine.name}</td>
+              <tr key={medicine.id} className={medicine.isActive ? undefined : 'muted-section'}>
+                <td>
+                  <form
+                    key={`${medicine.id}-${searchParams.sid ?? 'idle'}`}
+                    action={renameMedicineAction}
+                  >
+                    <input type="hidden" name="medicineId" value={medicine.id} />
+                    <input type="text" name="name" defaultValue={medicine.name} required />
+                    <button type="submit">Rename</button>
+                  </form>
+                </td>
                 <td>{medicine.batchNumber ?? '—'}</td>
                 <td>{medicine.stockQuantity}</td>
                 <td>{medicine.reorderLevel}</td>
@@ -52,6 +69,20 @@ export default async function InventoryPage({
                   {medicine.isLowStock && <StatusBadge status="LOW STOCK" />}{' '}
                   {medicine.isExpired && <StatusBadge status="EXPIRED" />}{' '}
                   {medicine.isNearExpiry && <StatusBadge status="EXPIRES SOON" />}
+                </td>
+                <td>
+                  <StatusBadge status={medicine.isActive ? 'Active' : 'Deactivated'} />
+                </td>
+                <td>
+                  <form action={setMedicineActiveAction}>
+                    <input type="hidden" name="medicineId" value={medicine.id} />
+                    <input
+                      type="hidden"
+                      name="isActive"
+                      value={medicine.isActive ? 'false' : 'true'}
+                    />
+                    <button type="submit">{medicine.isActive ? 'Deactivate' : 'Reactivate'}</button>
+                  </form>
                 </td>
               </tr>
             ))}

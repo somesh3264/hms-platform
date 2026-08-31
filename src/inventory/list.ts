@@ -3,15 +3,23 @@ import type { Prisma } from '@prisma/client';
 import { getExpiryStatus, isLowStock } from './status';
 
 // Full inventory listing (FR-6.4) with computed low-stock (FR-6.6/6.7) and
-// near-expiry (FR-6.9) flags, for the pharmacy inventory screen.
-export async function listMedicines(tx: Prisma.TransactionClient, hospitalId: string) {
+// near-expiry (FR-6.9) flags, for the pharmacy inventory screen. Defaults to
+// active medicines only (see Medicine.isActive) -- the dispense/counter-sale
+// catalogs and low-stock alerts should never surface a deactivated medicine;
+// only the inventory admin screen itself passes includeInactive: true, so
+// staff can see (and reactivate) one they'd previously deactivated.
+export async function listMedicines(
+  tx: Prisma.TransactionClient,
+  hospitalId: string,
+  options?: { includeInactive?: boolean },
+) {
   const hospital = await tx.hospital.findUniqueOrThrow({
     where: { id: hospitalId },
     select: { lowStockThresholdPercent: true },
   });
 
   const medicines = await tx.medicine.findMany({
-    where: { hospitalId },
+    where: { hospitalId, ...(options?.includeInactive ? {} : { isActive: true }) },
     orderBy: { name: 'asc' },
   });
 

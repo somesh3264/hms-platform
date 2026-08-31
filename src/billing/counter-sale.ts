@@ -73,11 +73,12 @@ export async function addCounterSaleItem(
     WHERE id = ${input.medicineId}
       AND hospital_id = ${input.hospitalId}
       AND stock_quantity >= ${input.quantity}
+      AND is_active = true
     RETURNING name, unit_price_cents
   `;
   if (!medicine) {
     throw new Error(
-      `Medicine not found or insufficient stock: ${input.medicineId} (requested ${input.quantity})`,
+      `Medicine not found, inactive, or insufficient stock: ${input.medicineId} (requested ${input.quantity})`,
     );
   }
 

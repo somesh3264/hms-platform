@@ -5,5 +5,5 @@ export { dispenseItem, finalizeDispensing } from './dispense';
 export type { DispenseItemInput } from './dispense';
 export { addMedicineStock } from './add-stock';
 export type { AddMedicineStockInput, AddMedicineStockResult } from './add-stock';
-export { updateMedicineName, setMedicineActive } from './edit';
-export type { UpdateMedicineNameInput, SetMedicineActiveInput } from './edit';
+export { updateMedicineDetails, setMedicineActive } from './edit';
+export type { UpdateMedicineDetailsInput, SetMedicineActiveInput } from './edit';

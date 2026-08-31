@@ -1,6 +1,6 @@
 'use server';
 
-import { addMedicineStock, setMedicineActive, updateMedicineName } from '@/inventory';
+import { addMedicineStock, setMedicineActive } from '@/inventory';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 
 function optionalString(formData: FormData, key: string): string | undefined {
@@ -31,7 +31,6 @@ export async function addMedicineStockAction(formData: FormData): Promise<void> 
         hospitalId,
         actorId,
         name,
-        batchNumber: optionalString(formData, 'batchNumber'),
         unitPriceCents: Math.round(unitPriceRupees * 100),
         quantity,
       });
@@ -46,27 +45,6 @@ export async function addMedicineStockAction(formData: FormData): Promise<void> 
   redirectWithFlash('/pharmacy/inventory', {
     success: merged ? 'Stock added to existing medicine.' : 'New medicine added to inventory.',
   });
-}
-
-export async function renameMedicineAction(formData: FormData): Promise<void> {
-  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
-
-  try {
-    const medicineId = optionalString(formData, 'medicineId');
-    const name = optionalString(formData, 'name');
-    if (!medicineId || !name) {
-      throw new Error('Missing medicineId or name.');
-    }
-    await withHospitalContext(hospitalId, (tx) =>
-      updateMedicineName(tx, { hospitalId, actorId, medicineId, name }),
-    );
-  } catch (err) {
-    redirectWithFlash('/pharmacy/inventory', {
-      error: err instanceof Error ? err.message : 'Failed to rename medicine.',
-    });
-  }
-
-  redirectWithFlash('/pharmacy/inventory', { success: 'Medicine renamed.' });
 }
 
 // Shared by both the "Deactivate" and "Reactivate" buttons -- a hidden

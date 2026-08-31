@@ -2,32 +2,47 @@ import type { Medicine, Prisma } from '@prisma/client';
 
 import { recordAuditLog } from '@/shared';
 
-export interface UpdateMedicineNameInput {
+export interface UpdateMedicineDetailsInput {
   hospitalId: string;
   actorId: string;
   medicineId: string;
   name: string;
+  unitPriceCents: number;
+  reorderLevel: number;
 }
 
-// Renames an existing catalog entry (a later, explicitly requested
-// addition -- there was previously no way to fix a medicine name once
-// added other than editing the database directly). Doesn't touch the
-// name/batch dedupe matching in addMedicineStock -- if the rename happens
-// to collide with another existing row's name+batch, that's the same
-// no-DB-level-uniqueness situation already documented there, not something
-// this function tries to prevent.
-export async function updateMedicineName(
+// Edits an existing catalog entry's core details (a later, explicitly
+// requested addition -- there was previously no way to fix any of these
+// once added other than editing the database directly; started as a
+// rename-only form, broadened to price and reorder level per explicit
+// request once a dedicated edit screen replaced the old inline-per-row
+// rename form). Deliberately not the full field set addMedicineStock/
+// Medicine support (salt composition, expiry, low-stock threshold
+// override) -- those were already cut from the "Add stock" form at
+// pharmacy staff's own request for being more than a quick form needs;
+// same reasoning applies here. Doesn't touch the name/batch dedupe
+// matching in addMedicineStock -- if the new name happens to collide with
+// another existing row's name+batch, that's the same no-DB-level-
+// uniqueness situation already documented there, not something this
+// function tries to prevent.
+export async function updateMedicineDetails(
   tx: Prisma.TransactionClient,
-  input: UpdateMedicineNameInput,
+  input: UpdateMedicineDetailsInput,
 ): Promise<Medicine> {
   const name = input.name.trim();
   if (!name) {
     throw new Error('Name is required.');
   }
+  if (input.unitPriceCents < 0) {
+    throw new Error('Unit price cannot be negative.');
+  }
+  if (input.reorderLevel < 0) {
+    throw new Error('Reorder level cannot be negative.');
+  }
 
   const { count } = await tx.medicine.updateMany({
     where: { id: input.medicineId, hospitalId: input.hospitalId },
-    data: { name },
+    data: { name, unitPriceCents: input.unitPriceCents, reorderLevel: input.reorderLevel },
   });
   if (count === 0) {
     throw new Error(`Medicine not found: ${input.medicineId}`);
@@ -36,10 +51,10 @@ export async function updateMedicineName(
   await recordAuditLog(tx, {
     hospitalId: input.hospitalId,
     actorId: input.actorId,
-    action: 'MEDICINE_RENAMED',
+    action: 'MEDICINE_UPDATED',
     entityType: 'Medicine',
     entityId: input.medicineId,
-    metadata: { newName: name },
+    metadata: { name, unitPriceCents: input.unitPriceCents, reorderLevel: input.reorderLevel },
   });
 
   return tx.medicine.findUniqueOrThrow({ where: { id: input.medicineId } });

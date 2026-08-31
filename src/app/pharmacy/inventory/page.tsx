@@ -1,10 +1,12 @@
+import Link from 'next/link';
+
 import { listMedicines } from '@/inventory';
 import { formatISTDate, requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
-import { addMedicineStockAction, renameMedicineAction, setMedicineActiveAction } from './actions';
+import { addMedicineStockAction, setMedicineActiveAction } from './actions';
 
 export default async function InventoryPage({
   searchParams,
@@ -32,13 +34,13 @@ export default async function InventoryPage({
           <thead>
             <tr>
               <th>Name</th>
-              <th>Batch</th>
               <th>Stock</th>
               <th>Reorder level</th>
               <th>Unit price</th>
               <th>Expiry</th>
               <th>Flags</th>
               <th>Status</th>
+              <th></th>
               <th></th>
             </tr>
           </thead>
@@ -50,17 +52,7 @@ export default async function InventoryPage({
             )}
             {medicines.map((medicine) => (
               <tr key={medicine.id} className={medicine.isActive ? undefined : 'muted-section'}>
-                <td>
-                  <form
-                    key={`${medicine.id}-${searchParams.sid ?? 'idle'}`}
-                    action={renameMedicineAction}
-                  >
-                    <input type="hidden" name="medicineId" value={medicine.id} />
-                    <input type="text" name="name" defaultValue={medicine.name} required />
-                    <button type="submit">Rename</button>
-                  </form>
-                </td>
-                <td>{medicine.batchNumber ?? '—'}</td>
+                <td>{medicine.name}</td>
                 <td>{medicine.stockQuantity}</td>
                 <td>{medicine.reorderLevel}</td>
                 <td>₹{(medicine.unitPriceCents / 100).toFixed(2)}</td>
@@ -72,6 +64,9 @@ export default async function InventoryPage({
                 </td>
                 <td>
                   <StatusBadge status={medicine.isActive ? 'Active' : 'Deactivated'} />
+                </td>
+                <td>
+                  <Link href={`/pharmacy/inventory/${medicine.id}/edit`}>Edit</Link>
                 </td>
                 <td>
                   <form action={setMedicineActiveAction}>
@@ -93,17 +88,13 @@ export default async function InventoryPage({
       <section>
         <h2>Add stock</h2>
         <p>
-          Adding a medicine with the same name and batch number as an existing entry adds to its
-          stock instead of creating a duplicate; a new name (or batch) creates a new entry.
+          Adding a medicine with the same name as an existing entry adds to its stock instead of
+          creating a duplicate; a new name creates a new entry.
         </p>
         <form key={searchParams.sid ?? 'idle'} action={addMedicineStockAction}>
           <label>
             Name
             <input type="text" name="name" required />
-          </label>
-          <label>
-            Batch number (optional)
-            <input type="text" name="batchNumber" />
           </label>
           <label>
             Unit price (₹)

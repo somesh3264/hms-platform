@@ -53,6 +53,7 @@ export async function updateHospitalBrandingAction(formData: FormData): Promise<
         registrationNumber: optionalString(formData, 'registrationNumber'),
         pharmacyName: optionalString(formData, 'pharmacyName'),
         pharmacyGstin: optionalString(formData, 'pharmacyGstin'),
+        pharmacyLicenseNumber: optionalString(formData, 'pharmacyLicenseNumber'),
         themeColor: optionalString(formData, 'themeColor'),
         logoUrl,
         upiQrCodeUrl,

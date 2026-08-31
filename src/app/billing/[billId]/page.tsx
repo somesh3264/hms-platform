@@ -61,11 +61,11 @@ function formatRupees(cents: number): string {
 // transaction of the hospital's in-house medical store, a separate
 // registered entity from the hospital itself -- shows that store's own
 // name/GSTIN (Hospital.pharmacyName/pharmacyGstin) instead of the
-// hospital's, and omits the hospital's clinical-establishment registration
-// number (belongs to the hospital, not the store) -- a later, explicitly
-// requested set of changes, kept deliberately minimal per that same request
-// -- everything else about the bill stays exactly as it is for a medicine
-// bill.
+// hospital's, and swaps the hospital's own clinical-establishment
+// registration number (belongs to the hospital, not the store) for the
+// store's own drug license number (Hospital.pharmacyLicenseNumber, a
+// later, explicitly requested addition) in that same slot -- everything
+// else about the bill stays exactly as it is for a medicine bill.
 export default async function BillDetailPage({
   params,
   searchParams,
@@ -125,6 +125,9 @@ export default async function BillDetailPage({
             {bill.hospital.contactPhone && <p>Contact No. {bill.hospital.contactPhone}</p>}
             {!isMedicineBill && bill.hospital.registrationNumber && (
               <p>Reg.no. {bill.hospital.registrationNumber}</p>
+            )}
+            {isMedicineBill && bill.hospital.pharmacyLicenseNumber && (
+              <p>Drug license no. {bill.hospital.pharmacyLicenseNumber}</p>
             )}
             {billerGstin && <p>GSTIN: {billerGstin}</p>}
           </div>

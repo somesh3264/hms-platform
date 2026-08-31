@@ -73,6 +73,14 @@ export default async function HospitalSettingsPage({
             <input type="text" name="pharmacyGstin" defaultValue={hospital.pharmacyGstin ?? ''} />
           </label>
           <label>
+            Pharmacy/medical store drug license number (shown on medicine bills)
+            <input
+              type="text"
+              name="pharmacyLicenseNumber"
+              defaultValue={hospital.pharmacyLicenseNumber ?? ''}
+            />
+          </label>
+          <label>
             Theme color
             <input type="color" name="themeColor" defaultValue={hospital.themeColor ?? '#2563eb'} />
           </label>

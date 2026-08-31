@@ -21,8 +21,8 @@ datasource db {
 // src/shared/tenant-context.ts for how the app satisfies them at query time.
 
 model Hospital {
-  id                 String         @id @default(cuid())
-  name               String
+  id                    String         @id @default(cuid())
+  name                  String
   // Tenant-resolution key for the shared-platform deployment model (BRS
   // FR-1.7): requests are routed by the subdomain of the Host header
   // (e.g. "apollo" for apollo.yourdomain.com) rather than a hardcoded
@@ -30,28 +30,28 @@ model Hospital {
   // Lowercase, URL-safe, unique across the whole platform (not just per
   // hospital, since there is no enclosing scope narrower than "the
   // deployment" for this field).
-  subdomain          String         @unique
-  logoUrl            String?        @map("logo_url")
+  subdomain             String         @unique
+  logoUrl               String?        @map("logo_url")
   // Hospital Admin-uploaded UPI QR code (FR-7.5-adjacent, a later,
   // explicitly requested addition), shown wherever staff can select UPI as
   // a payment method so the patient can scan-to-pay directly. Same
   // upload/storage pattern as logoUrl, not a raw UPI ID/VPA -- see
   // saveHospitalUpiQrCode in src/shared/storage.ts.
-  upiQrCodeUrl       String?        @map("upi_qr_code_url")
-  address            String?
-  contactPhone       String?        @map("contact_phone")
-  contactEmail       String?        @map("contact_email")
+  upiQrCodeUrl          String?        @map("upi_qr_code_url")
+  address               String?
+  contactPhone          String?        @map("contact_phone")
+  contactEmail          String?        @map("contact_email")
   // Shown on the printable bill's letterhead (src/app/billing/[billId]) --
   // a later, explicitly requested addition once the hospital gave a
   // reference bill format that includes it.
-  website            String?
-  gstin              String?
+  website               String?
+  gstin                 String?
   // Clinical establishment registration number (e.g. a state health
   // department registration, distinct from GSTIN) -- shown on the printed
   // prescription form's letterhead (src/app/front-desk/prescription-form),
   // a later, explicitly requested addition once the hospital's real
   // letterhead photo showed it printed there.
-  registrationNumber String?        @map("registration_number")
+  registrationNumber    String?        @map("registration_number")
   // The in-house medical store often trades under its own registered name
   // and GSTIN, distinct from the hospital's own -- shown on the printable
   // bill (src/app/billing/[billId]) in place of the hospital's own
@@ -60,10 +60,17 @@ model Hospital {
   // Nullable: falls back to the hospital's own name/gstin when unset,
   // rather than forcing every hospital to configure a separate pharmacy
   // identity it may not have.
-  pharmacyName       String?        @map("pharmacy_name")
-  pharmacyGstin      String?        @map("pharmacy_gstin")
-  themeColor         String?        @map("theme_color")
-  status             HospitalStatus @default(ACTIVE)
+  pharmacyName          String?        @map("pharmacy_name")
+  pharmacyGstin         String?        @map("pharmacy_gstin")
+  // Drug license number for the in-house medical store (Drugs and
+  // Cosmetics Act licensing, distinct from GSTIN) -- shown on the
+  // printable bill (src/app/billing/[billId]) alongside pharmacyGstin
+  // whenever a bill contains a MEDICINE line item, same conditional
+  // treatment as registrationNumber gets for a non-medicine bill. A later,
+  // explicitly requested addition.
+  pharmacyLicenseNumber String?        @map("pharmacy_license_number")
+  themeColor            String?        @map("theme_color")
+  status                HospitalStatus @default(ACTIVE)
 
   // Default low-stock alert threshold (% of reorder level), FR-6.6/FR-6.7.
   // Overridable per medicine via Medicine.lowStockThresholdPercent.

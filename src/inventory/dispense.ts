@@ -148,6 +148,99 @@ export async function removeDispensedItem(
   });
 }
 
+export interface UpdateDispensedItemQuantityInput {
+  hospitalId: string;
+  actorId: string;
+  prescriptionId: string;
+  billLineItemId: string;
+  quantity: number;
+}
+
+// Corrects the quantity of an already-dispensed line item in place (a
+// later, explicitly requested addition, alongside removeDispensedItem
+// above -- that one covers "wrong medicine entirely," this one covers
+// "right medicine, wrong quantity" without a remove-then-redispense
+// round trip). unitPriceCents is left untouched (it's the catalog price
+// snapshot at dispense time, not something quantity should change) --
+// only lineTotalCents is recomputed against it, which is what actually
+// feeds the eventual bill's subtotal (see createBill).
+//
+// Adjusts stock by the signed difference rather than restore-then-redo:
+// an increase re-runs dispenseItem's own atomic conditional decrement
+// (so it can't oversell and requires the medicine still be active); a
+// decrease unconditionally gives stock back, same as removeDispensedItem,
+// since there's no floor to violate when returning stock. Same
+// UPLOADED/unbilled gate as removeDispensedItem, for the same reason.
+export async function updateDispensedItemQuantity(
+  tx: Prisma.TransactionClient,
+  input: UpdateDispensedItemQuantityInput,
+): Promise<void> {
+  if (input.quantity <= 0) {
+    throw new Error('Quantity must be positive.');
+  }
+
+  const prescription = await tx.prescription.findFirst({
+    where: { id: input.prescriptionId, hospitalId: input.hospitalId, status: 'UPLOADED' },
+    select: { id: true },
+  });
+  if (!prescription) {
+    throw new Error(`Prescription not found or not editable: ${input.prescriptionId}`);
+  }
+
+  const lineItem = await tx.billLineItem.findFirst({
+    where: {
+      id: input.billLineItemId,
+      hospitalId: input.hospitalId,
+      prescriptionId: input.prescriptionId,
+      billId: null,
+    },
+  });
+  if (!lineItem) {
+    throw new Error(`Dispensed item not found or already billed: ${input.billLineItemId}`);
+  }
+
+  const delta = input.quantity - lineItem.quantity;
+  if (delta > 0) {
+    const [row] = await tx.$queryRaw<{ id: string }[]>`
+      UPDATE medicines
+      SET stock_quantity = stock_quantity - ${delta}
+      WHERE id = ${lineItem.medicineId}
+        AND hospital_id = ${input.hospitalId}
+        AND stock_quantity >= ${delta}
+        AND is_active = true
+      RETURNING id
+    `;
+    if (!row) {
+      throw new Error(`Insufficient stock to increase quantity to ${input.quantity}.`);
+    }
+  } else if (delta < 0) {
+    await tx.$executeRaw`
+      UPDATE medicines
+      SET stock_quantity = stock_quantity + ${-delta}
+      WHERE id = ${lineItem.medicineId} AND hospital_id = ${input.hospitalId}
+    `;
+  }
+
+  await tx.billLineItem.update({
+    where: { id: lineItem.id },
+    data: { quantity: input.quantity, lineTotalCents: lineItem.unitPriceCents * input.quantity },
+  });
+
+  await recordAuditLog(tx, {
+    hospitalId: input.hospitalId,
+    actorId: input.actorId,
+    action: 'PRESCRIPTION_ITEM_QUANTITY_UPDATED',
+    entityType: 'Prescription',
+    entityId: input.prescriptionId,
+    metadata: {
+      medicineId: lineItem.medicineId,
+      previousQuantity: lineItem.quantity,
+      newQuantity: input.quantity,
+      billLineItemId: lineItem.id,
+    },
+  });
+}
+
 // Closes out a prescription once all needed medicines have been dispensed
 // (FR-6.10), requiring at least one dispensed item -- mirrors
 // completeConsultation's "requires a Prescription to exist" gate one level

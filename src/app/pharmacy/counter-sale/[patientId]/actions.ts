@@ -3,7 +3,12 @@
 import type { PaymentMethod } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 
-import { addCounterSaleItem, finalizeCounterSale, removeCounterSaleItem } from '@/billing';
+import {
+  addCounterSaleItem,
+  finalizeCounterSale,
+  removeCounterSaleItem,
+  updateCounterSaleItemQuantity,
+} from '@/billing';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 
 function optionalString(formData: FormData, key: string): string | undefined {
@@ -64,6 +69,35 @@ export async function removeCounterSaleItemAction(formData: FormData): Promise<v
   revalidatePath('/pharmacy/inventory');
   revalidatePath('/doctor');
   redirectWithFlash(path, { success: 'Dispensed item removed and stock restored.' });
+}
+
+// Corrects the quantity of an already-dispensed Counter Sale item in place
+// (see updateCounterSaleItemQuantity) -- same one-click shape as the
+// actions above, submitted from the editable quantity input on its row.
+export async function updateCounterSaleItemQuantityAction(formData: FormData): Promise<void> {
+  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
+  const patientId = String(formData.get('patientId') ?? '');
+  const path = patientId ? `/pharmacy/counter-sale/${patientId}` : '/pharmacy/counter-sale';
+
+  try {
+    const billId = String(formData.get('billId') ?? '');
+    const billLineItemId = String(formData.get('billLineItemId') ?? '');
+    const quantity = Number(formData.get('quantity'));
+    if (!billId || !billLineItemId || !Number.isFinite(quantity)) {
+      throw new Error('Missing billId, billLineItemId, or quantity.');
+    }
+    await withHospitalContext(hospitalId, (tx) =>
+      updateCounterSaleItemQuantity(tx, { hospitalId, actorId, billId, billLineItemId, quantity }),
+    );
+  } catch (err) {
+    redirectWithFlash(path, {
+      error: err instanceof Error ? err.message : 'Failed to update quantity.',
+    });
+  }
+
+  revalidatePath('/pharmacy/inventory');
+  revalidatePath('/doctor');
+  redirectWithFlash(path, { success: 'Quantity updated.' });
 }
 
 export async function finalizeCounterSaleAction(formData: FormData): Promise<void> {

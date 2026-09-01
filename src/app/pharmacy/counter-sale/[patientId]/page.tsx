@@ -9,6 +9,7 @@ import {
   dispenseCounterSaleItemAction,
   finalizeCounterSaleAction,
   removeCounterSaleItemAction,
+  updateCounterSaleItemQuantityAction,
 } from './actions';
 
 // Mirrors the prescription dispense screen (src/app/pharmacy/[prescriptionId]/
@@ -82,7 +83,21 @@ export default async function CounterSalePatientPage({
               {openBill.lineItems.map((item) => (
                 <tr key={item.id}>
                   <td>{item.description}</td>
-                  <td>{item.quantity}</td>
+                  <td>
+                    <form action={updateCounterSaleItemQuantityAction} className="inline-fields">
+                      <input type="hidden" name="patientId" value={patient.id} />
+                      <input type="hidden" name="billId" value={openBill.id} />
+                      <input type="hidden" name="billLineItemId" value={item.id} />
+                      <input
+                        type="number"
+                        name="quantity"
+                        min={1}
+                        defaultValue={item.quantity}
+                        required
+                      />
+                      <button type="submit">Update</button>
+                    </form>
+                  </td>
                   <td>₹{(item.unitPriceCents / 100).toFixed(2)}</td>
                   <td>
                     <form action={removeCounterSaleItemAction}>

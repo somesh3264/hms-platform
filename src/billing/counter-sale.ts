@@ -200,6 +200,102 @@ export async function removeCounterSaleItem(
   });
 }
 
+export interface UpdateCounterSaleItemQuantityInput {
+  hospitalId: string;
+  actorId: string;
+  billId: string;
+  billLineItemId: string;
+  quantity: number;
+}
+
+// Corrects the quantity of an already-dispensed Counter Sale item in place
+// (a later, explicitly requested addition, mirroring
+// updateDispensedItemQuantity in src/inventory/dispense.ts -- see there
+// for the general rationale and the stock-adjustment shape). The one real
+// difference from that prescription-flow version: a real Bill already
+// exists here, so the line's lineTotalCents delta is also applied to the
+// bill's running subtotalCents/totalCents, same as removeCounterSaleItem
+// above does for a full removal.
+export async function updateCounterSaleItemQuantity(
+  tx: Prisma.TransactionClient,
+  input: UpdateCounterSaleItemQuantityInput,
+): Promise<void> {
+  if (input.quantity <= 0) {
+    throw new Error('Quantity must be positive.');
+  }
+
+  const bill = await tx.bill.findFirst({
+    where: {
+      id: input.billId,
+      hospitalId: input.hospitalId,
+      visitId: null,
+      paymentStatus: 'PENDING',
+    },
+  });
+  if (!bill) {
+    throw new Error(`Counter sale not found or already finalized: ${input.billId}`);
+  }
+
+  const lineItem = await tx.billLineItem.findFirst({
+    where: { id: input.billLineItemId, hospitalId: input.hospitalId, billId: bill.id },
+  });
+  if (!lineItem) {
+    throw new Error(`Dispensed item not found: ${input.billLineItemId}`);
+  }
+
+  const quantityDelta = input.quantity - lineItem.quantity;
+  if (quantityDelta > 0) {
+    const [row] = await tx.$queryRaw<{ id: string }[]>`
+      UPDATE medicines
+      SET stock_quantity = stock_quantity - ${quantityDelta}
+      WHERE id = ${lineItem.medicineId}
+        AND hospital_id = ${input.hospitalId}
+        AND stock_quantity >= ${quantityDelta}
+        AND is_active = true
+      RETURNING id
+    `;
+    if (!row) {
+      throw new Error(`Insufficient stock to increase quantity to ${input.quantity}.`);
+    }
+  } else if (quantityDelta < 0) {
+    await tx.$executeRaw`
+      UPDATE medicines
+      SET stock_quantity = stock_quantity + ${-quantityDelta}
+      WHERE id = ${lineItem.medicineId} AND hospital_id = ${input.hospitalId}
+    `;
+  }
+
+  const newLineTotalCents = lineItem.unitPriceCents * input.quantity;
+  const lineTotalDelta = newLineTotalCents - lineItem.lineTotalCents;
+
+  await tx.billLineItem.update({
+    where: { id: lineItem.id },
+    data: { quantity: input.quantity, lineTotalCents: newLineTotalCents },
+  });
+
+  await tx.bill.update({
+    where: { id: bill.id },
+    data: {
+      subtotalCents: { increment: lineTotalDelta },
+      totalCents: { increment: lineTotalDelta },
+    },
+  });
+
+  await recordAuditLog(tx, {
+    hospitalId: input.hospitalId,
+    actorId: input.actorId,
+    action: 'COUNTER_SALE_ITEM_QUANTITY_UPDATED',
+    entityType: 'Bill',
+    entityId: bill.id,
+    metadata: {
+      medicineId: lineItem.medicineId,
+      previousQuantity: lineItem.quantity,
+      newQuantity: input.quantity,
+      billLineItemId: lineItem.id,
+    },
+  });
+}
+
 export interface FinalizeCounterSaleInput {
   hospitalId: string;
   actorId: string;

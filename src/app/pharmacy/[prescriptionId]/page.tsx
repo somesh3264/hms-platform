@@ -5,7 +5,12 @@ import { formatISTDateTime, requireSession, withHospitalContext } from '@/shared
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
-import { dispenseItemAction, finalizeDispensingAction, removeDispensedItemAction } from './actions';
+import {
+  dispenseItemAction,
+  finalizeDispensingAction,
+  removeDispensedItemAction,
+  updateDispensedItemQuantityAction,
+} from './actions';
 
 export default async function DispensePrescriptionPage({
   params,
@@ -83,7 +88,24 @@ export default async function DispensePrescriptionPage({
               {prescription.billLineItems.map((item) => (
                 <tr key={item.id}>
                   <td>{item.description}</td>
-                  <td>{item.quantity}</td>
+                  <td>
+                    {prescription.status === 'UPLOADED' ? (
+                      <form action={updateDispensedItemQuantityAction} className="inline-fields">
+                        <input type="hidden" name="prescriptionId" value={prescription.id} />
+                        <input type="hidden" name="billLineItemId" value={item.id} />
+                        <input
+                          type="number"
+                          name="quantity"
+                          min={1}
+                          defaultValue={item.quantity}
+                          required
+                        />
+                        <button type="submit">Update</button>
+                      </form>
+                    ) : (
+                      item.quantity
+                    )}
+                  </td>
                   <td>₹{(item.unitPriceCents / 100).toFixed(2)}</td>
                   {prescription.status === 'UPLOADED' && (
                     <td>

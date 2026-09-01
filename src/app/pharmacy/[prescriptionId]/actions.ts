@@ -2,7 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { dispenseItem, finalizeDispensing, removeDispensedItem } from '@/inventory';
+import {
+  dispenseItem,
+  finalizeDispensing,
+  removeDispensedItem,
+  updateDispensedItemQuantity,
+} from '@/inventory';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 
 function optionalString(formData: FormData, key: string): string | undefined {
@@ -60,6 +65,40 @@ export async function removeDispensedItemAction(formData: FormData): Promise<voi
   revalidatePath('/pharmacy/inventory');
   revalidatePath('/doctor');
   redirectWithFlash(path, { success: 'Dispensed item removed and stock restored.' });
+}
+
+// Corrects the quantity of an already-dispensed line item in place (see
+// updateDispensedItemQuantity) -- same one-click shape as the actions
+// above, submitted from the editable quantity input on its row.
+export async function updateDispensedItemQuantityAction(formData: FormData): Promise<void> {
+  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
+  const prescriptionId = String(formData.get('prescriptionId') ?? '');
+  const path = prescriptionId ? `/pharmacy/${prescriptionId}` : '/pharmacy';
+
+  try {
+    const billLineItemId = String(formData.get('billLineItemId') ?? '');
+    const quantity = Number(formData.get('quantity'));
+    if (!prescriptionId || !billLineItemId || !Number.isFinite(quantity)) {
+      throw new Error('Missing prescriptionId, billLineItemId, or quantity.');
+    }
+    await withHospitalContext(hospitalId, (tx) =>
+      updateDispensedItemQuantity(tx, {
+        hospitalId,
+        actorId,
+        prescriptionId,
+        billLineItemId,
+        quantity,
+      }),
+    );
+  } catch (err) {
+    redirectWithFlash(path, {
+      error: err instanceof Error ? err.message : 'Failed to update quantity.',
+    });
+  }
+
+  revalidatePath('/pharmacy/inventory');
+  revalidatePath('/doctor');
+  redirectWithFlash(path, { success: 'Quantity updated.' });
 }
 
 // Finalizing dispensing hands the pharmacist straight into billing for the

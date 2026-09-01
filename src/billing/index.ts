@@ -7,11 +7,17 @@ export { collectConsultationFee, CONSULTATION_FEE_DESCRIPTION } from './consulta
 export type { CollectConsultationFeeInput } from './consultation-fee';
 export { collectFrontDeskCharges } from './front-desk-charges';
 export type { CollectFrontDeskChargesInput, FrontDeskChargeInput } from './front-desk-charges';
-export { addCounterSaleItem, finalizeCounterSale, removeCounterSaleItem } from './counter-sale';
+export {
+  addCounterSaleItem,
+  finalizeCounterSale,
+  removeCounterSaleItem,
+  updateCounterSaleItemQuantity,
+} from './counter-sale';
 export type {
   AddCounterSaleItemInput,
   FinalizeCounterSaleInput,
   RemoveCounterSaleItemInput,
+  UpdateCounterSaleItemQuantityInput,
 } from './counter-sale';
 export { searchBills } from './search';
 export { getBillDetail } from './detail';

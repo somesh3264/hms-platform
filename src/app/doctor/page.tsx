@@ -4,7 +4,12 @@ import type { Gender, VisitStatus } from '@prisma/client';
 
 import { listLowStockMedicines } from '@/inventory';
 import { searchPatients } from '@/patients';
-import { formatISTDateTime, getISTDayBoundsUTC, requireSession, withHospitalContext } from '@/shared';
+import {
+  formatISTDateTime,
+  getISTDayBoundsUTC,
+  requireSession,
+  withHospitalContext,
+} from '@/shared';
 import { listVisitsForDoctor } from '@/visits';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
@@ -32,7 +37,7 @@ export default async function DoctorQueuePage({
     const visits = await listVisitsForDoctor(tx, {
       hospitalId,
       doctorId,
-      statuses: ['WAITING', 'IN_CONSULTATION', 'COMPLETED'],
+      statuses: ['WAITING', 'IN_CONSULTATION', 'COMPLETED', 'CANCELLED'],
       visitDateFrom: start,
       visitDateTo: end,
     });
@@ -44,6 +49,10 @@ export default async function DoctorQueuePage({
   const waiting = visits.filter((visit) => visit.status === 'WAITING');
   const inConsultation = visits.filter((visit) => visit.status === 'IN_CONSULTATION');
   const completed = visits.filter((visit) => visit.status === 'COMPLETED');
+  // CANCELLED is front desk's "marked as no-show" resolution (see
+  // markVisitNoShow) -- there's no separate doctor-side cancellation
+  // action, so every CANCELLED visit here is a no-show.
+  const noShow = visits.filter((visit) => visit.status === 'CANCELLED');
 
   return (
     <main>
@@ -69,6 +78,8 @@ export default async function DoctorQueuePage({
           <dd>{inConsultation.length}</dd>
           <dt>Completed</dt>
           <dd>{completed.length}</dd>
+          <dt>No-show</dt>
+          <dd>{noShow.length}</dd>
           <dt>Total</dt>
           <dd>{visits.length}</dd>
         </dl>
@@ -145,6 +156,12 @@ export default async function DoctorQueuePage({
         <h2>Completed today</h2>
         <p>Retained here for the day so you can reopen one if needed.</p>
         <VisitList visits={completed} emptyLabel="None completed yet." muted />
+      </section>
+
+      <section>
+        <h2>No-show today</h2>
+        <p>Marked by front desk when a booked or waiting patient never arrived.</p>
+        <VisitList visits={noShow} emptyLabel="No no-shows today." muted />
       </section>
     </main>
   );

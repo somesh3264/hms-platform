@@ -79,3 +79,34 @@ export async function completeConsultation(
     entityId: params.visitId,
   });
 }
+
+// Marks a visit as a no-show (a later, explicitly requested addition, no
+// FR number) -- front desk's resolution for a booked/waiting patient who
+// never arrived. Reuses the schema's existing CANCELLED status rather than
+// adding a new enum value: it was already sitting unused (only read by
+// StatusBadge and the doctor visit-detail page), and startConsultation's
+// own comment above already anticipated rejecting a re-open attempt
+// against it. Only valid from WAITING, same one-way-terminal shape as
+// completeConsultation -- once marked, the visit stays CANCELLED; if the
+// patient does show up later, front desk books them a fresh visit rather
+// than reopening this one.
+export async function markVisitNoShow(
+  tx: Prisma.TransactionClient,
+  params: { hospitalId: string; actorId: string; visitId: string },
+): Promise<void> {
+  const { count } = await tx.visit.updateMany({
+    where: { id: params.visitId, hospitalId: params.hospitalId, status: 'WAITING' },
+    data: { status: 'CANCELLED' },
+  });
+  if (count === 0) {
+    throw new Error(`Visit not found or not waiting: ${params.visitId}`);
+  }
+
+  await recordAuditLog(tx, {
+    hospitalId: params.hospitalId,
+    actorId: params.actorId,
+    action: 'VISIT_NO_SHOW',
+    entityType: 'Visit',
+    entityId: params.visitId,
+  });
+}

@@ -5,7 +5,7 @@ import type { Gender, PaymentMethod, Prisma } from '@prisma/client';
 import { collectConsultationFee } from '@/billing';
 import { registerPatient } from '@/patients';
 import { parseISTDateTime, redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
-import { createVisit } from '@/visits';
+import { createVisit, markVisitNoShow } from '@/visits';
 
 function optionalString(formData: FormData, key: string): string | undefined {
   const value = formData.get(key);
@@ -277,4 +277,30 @@ export async function collectConsultationFeeAction(formData: FormData): Promise<
   // so front desk can print the just-collected bill immediately (point 1)
   // instead of having to find it again from the waiting queue.
   redirectWithFlash(`/front-desk/visit/${visitId}`, { success: 'Consultation fee collected.' });
+}
+
+// Front desk's resolution for a WAITING visit whose patient never arrived
+// (see markVisitNoShow) -- one click from the waiting-queue row, no
+// confirmation step, matching the app's other single-click row actions
+// (e.g. the doctor home screen's "Start next waiting patient"). Redirects
+// back to the queue itself rather than a visit print-landing page, since a
+// no-show has nothing to print.
+export async function markVisitNoShowAction(formData: FormData): Promise<void> {
+  const { hospitalId, actorId } = await requireSession(['FRONT_DESK']);
+  const visitId = optionalString(formData, 'visitId');
+
+  try {
+    if (!visitId) {
+      throw new Error('Missing visit.');
+    }
+    await withHospitalContext(hospitalId, (tx) =>
+      markVisitNoShow(tx, { hospitalId, actorId, visitId }),
+    );
+  } catch (err) {
+    redirectWithFlash('/front-desk', {
+      error: err instanceof Error ? err.message : 'Failed to mark no-show.',
+    });
+  }
+
+  redirectWithFlash('/front-desk', { success: 'Visit marked as no-show.' });
 }

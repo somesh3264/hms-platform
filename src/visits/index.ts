@@ -6,7 +6,13 @@ export {
   listVisitsForDoctor,
   listInConsultationVisits,
   listRecentlyCompletedVisits,
+  listNoShowVisits,
 } from './queue';
 export { getVisitDetail } from './detail';
 export { getVisitDoctorLabel } from './display';
-export { startConsultation, saveConsultationNotes, completeConsultation } from './consultation';
+export {
+  startConsultation,
+  saveConsultationNotes,
+  completeConsultation,
+  markVisitNoShow,
+} from './consultation';

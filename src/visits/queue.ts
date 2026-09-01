@@ -105,6 +105,33 @@ export async function listRecentlyCompletedVisits(
   });
 }
 
+// Front desk's record of who was booked/waiting today but never arrived (a
+// later, explicitly requested addition -- see markVisitNoShow). Retained
+// and shown for the day rather than silently dropped, same reasoning as
+// listRecentlyCompletedVisits below. Bounded by visitDate like
+// listWaitingQueue above (not updatedAt like listRecentlyCompletedVisits)
+// since a no-show is fundamentally about a missed appointment time, not
+// about when front desk got around to marking it.
+export async function listNoShowVisits(
+  tx: Prisma.TransactionClient,
+  params: { hospitalId: string },
+) {
+  const { start, end } = getISTDayBoundsUTC();
+
+  return tx.visit.findMany({
+    where: {
+      hospitalId: params.hospitalId,
+      status: 'CANCELLED',
+      visitDate: { gte: start, lt: end },
+    },
+    orderBy: { visitDate: 'asc' },
+    include: {
+      patient: { select: { id: true, patientCode: true, name: true } },
+      doctor: { select: { id: true, name: true } },
+    },
+  });
+}
+
 // A single doctor's visits across one or more statuses (FR-4.2), e.g. their
 // waiting queue plus any visit they left mid-consultation to resume.
 // Optionally bounded to a visitDate range (FR-4.6: "today's queue" on the

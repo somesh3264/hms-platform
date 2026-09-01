@@ -13,6 +13,7 @@ import {
   getVisitDoctorLabel,
   HOSPITAL_DOCTOR_SENTINEL,
   listInConsultationVisits,
+  listNoShowVisits,
   listRecentlyCompletedVisits,
   listWaitingQueue,
 } from '@/visits';
@@ -21,7 +22,12 @@ import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 import { UpiQrCode } from '@/app/components/UpiQrCode';
 
-import { collectConsultationFeeAction, createVisitAction, registerPatientAction } from './actions';
+import {
+  collectConsultationFeeAction,
+  createVisitAction,
+  markVisitNoShowAction,
+  registerPatientAction,
+} from './actions';
 
 // The primary doctor (User.isPrimaryDoctor, see prisma/schema.prisma) gets
 // an *additional* "Shivgeet hospital" entry in every doctor-picking
@@ -115,7 +121,7 @@ export default async function FrontDeskPage({
     select: { upiQrCodeUrl: true },
   });
 
-  const { searchResults, queue, inConsultation, recentlyCompleted, doctors } =
+  const { searchResults, queue, inConsultation, recentlyCompleted, noShow, doctors } =
     await withHospitalContext(hospitalId, async (tx) => {
       const searchResults = query ? await searchPatients(tx, { hospitalId, query }) : [];
       const queue = await listWaitingQueue(tx, { hospitalId });
@@ -124,12 +130,13 @@ export default async function FrontDeskPage({
         hospitalId,
         since: getISTDayBoundsUTC().start,
       });
+      const noShow = await listNoShowVisits(tx, { hospitalId });
       const doctors = await tx.user.findMany({
         where: { hospitalId, role: 'DOCTOR', isActive: true },
         select: { id: true, name: true, isPrimaryDoctor: true },
         orderBy: [{ isPrimaryDoctor: 'desc' }, { name: 'asc' }],
       });
-      return { searchResults, queue, inConsultation, recentlyCompleted, doctors };
+      return { searchResults, queue, inConsultation, recentlyCompleted, noShow, doctors };
     });
 
   return (
@@ -295,12 +302,13 @@ export default async function FrontDeskPage({
               <th>Other charges</th>
               <th>Bills</th>
               <th>Prescription form</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {queue.length === 0 && (
               <tr>
-                <td colSpan={8}>No patients waiting.</td>
+                <td colSpan={9}>No patients waiting.</td>
               </tr>
             )}
             {queue.map((visit) => (
@@ -345,6 +353,12 @@ export default async function FrontDeskPage({
                       e.g. a booked appointment printed days ago whose paper
                       got lost, or one skipped at registration time. */}
                   <Link href={`/front-desk/prescription-form/${visit.id}`}>Print</Link>
+                </td>
+                <td>
+                  <form action={markVisitNoShowAction}>
+                    <input type="hidden" name="visitId" value={visit.id} />
+                    <button type="submit">Mark no-show</button>
+                  </form>
                 </td>
               </tr>
             ))}
@@ -446,6 +460,40 @@ export default async function FrontDeskPage({
                       '—'
                     )}
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section>
+        <h2>No-show today</h2>
+        <p>
+          Booked or waiting patients marked as not arrived. Kept here for the day rather than
+          silently dropped, in case there&apos;s a dispute or they call back.
+        </p>
+        {noShow.length === 0 ? (
+          <p>No no-shows today.</p>
+        ) : (
+          <table className="muted-section">
+            <thead>
+              <tr>
+                <th>Token #</th>
+                <th>Patient</th>
+                <th>Doctor</th>
+                <th>Appointment time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {noShow.map((visit) => (
+                <tr key={visit.id}>
+                  <td>{visit.tokenNumber ?? '—'}</td>
+                  <td>
+                    {visit.patient.name} ({visit.patient.patientCode})
+                  </td>
+                  <td>{getVisitDoctorLabel(visit)}</td>
+                  <td>{formatISTDateTime(visit.visitDate)}</td>
                 </tr>
               ))}
             </tbody>

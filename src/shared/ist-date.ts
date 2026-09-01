@@ -102,14 +102,26 @@ export function getISTMonthBoundsUTC(date: Date = new Date()): { start: Date; en
 // entered (e.g. a 5:00 PM appointment rendering as 11:30 AM) -- the same
 // underlying bug already fixed on the write side above
 // (getISTNowDateTimeStrings/parseISTDateTime), now fixed on the read/
-// display side too. `en-US` matches toLocaleString()'s own default output
-// shape (e.g. "8/22/2026, 5:00:00 PM"), so this is a drop-in replacement,
-// not a visual change -- only the timezone anchor is different.
-const IST_DATETIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
+// display side too.
+//
+// `en-GB` with explicit 2-digit month/day (a later, explicitly requested
+// change from the original `en-US`) renders DD/MM/YYYY -- e.g.
+// "05/08/2026" -- instead of en-US's M/D/YYYY (e.g. "8/5/2026", the
+// convention that was showing on printed bills and reading as the wrong
+// date entirely for anyone expecting the Indian DD/MM/YYYY convention).
+// Every caller of formatISTDate/formatISTDateTime across the app (bills,
+// front desk, doctor, pharmacy, patient records, reports) goes through
+// this one shared pair, so the fix applies everywhere a stored date is
+// displayed. Native `<input type="date">` fields (e.g. the front desk
+// appointment date field) are unaffected -- their on-screen format is the
+// browser's own locale setting, not something app code controls; only the
+// underlying YYYY-MM-DD value (unrelated to *display* format) is set by
+// this app.
+const IST_DATETIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: IST_TIME_ZONE,
   year: 'numeric',
-  month: 'numeric',
-  day: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
   hour: 'numeric',
   minute: '2-digit',
   second: '2-digit',
@@ -120,11 +132,11 @@ export function formatISTDateTime(date: Date): string {
   return IST_DATETIME_FORMATTER.format(date);
 }
 
-const IST_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+const IST_DATE_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: IST_TIME_ZONE,
   year: 'numeric',
-  month: 'numeric',
-  day: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
 });
 
 export function formatISTDate(date: Date): string {

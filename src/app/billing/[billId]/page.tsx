@@ -247,6 +247,14 @@ export default async function BillDetailPage({
             explicitly requested addition so both the on-screen and printed
             copy carry the same reassurance. */}
         <p className="print-footer-note">This bill is digitally generated, seal is not required.</p>
+        {/* Medicine-only disclaimer (a later, explicitly requested
+            addition) -- same isMedicineBill gate as the pharmacy
+            name/GSTIN/drug-license-number swap above, since this only
+            applies to a sale from the in-house medical store, not a
+            hospital service charge. */}
+        {isMedicineBill && (
+          <p className="print-footer-note">Medicines once sold cannot be returned.</p>
+        )}
       </div>
 
       {bill.paymentStatus === 'PENDING' && role === 'PHARMACIST' && (

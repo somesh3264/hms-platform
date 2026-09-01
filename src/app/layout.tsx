@@ -19,6 +19,7 @@ const ROLE_LINKS: Record<UserRole, { href: string; label: string }[]> = {
   HOSPITAL_ADMIN: [
     { href: '/admin/hospital', label: 'Hospital Settings' },
     { href: '/admin/users', label: 'Manage Users' },
+    { href: '/admin/inventory', label: 'Stock Adjustments' },
   ],
   FRONT_DESK: [{ href: '/front-desk', label: 'Front Desk' }],
   DOCTOR: [

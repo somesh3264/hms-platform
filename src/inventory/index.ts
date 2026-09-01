@@ -14,5 +14,7 @@ export type {
 } from './dispense';
 export { addMedicineStock } from './add-stock';
 export type { AddMedicineStockInput, AddMedicineStockResult } from './add-stock';
+export { adjustMedicineStock } from './adjust';
+export type { AdjustMedicineStockInput } from './adjust';
 export { updateMedicineDetails, setMedicineActive } from './edit';
 export type { UpdateMedicineDetailsInput, SetMedicineActiveInput } from './edit';

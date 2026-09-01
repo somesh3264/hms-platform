@@ -265,8 +265,13 @@ export default async function FrontDeskPage({
           </label>
           <label>
             Assign doctor
-            <select name="doctorId" defaultValue="">
-              <option value="">No appointment yet</option>
+            {/* Defaults to "Shivgeet hospital" (HOSPITAL_DOCTOR_SENTINEL)
+                rather than a blank "no appointment yet" option -- a later,
+                explicitly requested change: front desk almost always books
+                a visit for a new registration anyway, so this saves a step
+                for the common case while still letting them pick a
+                specific doctor instead. */}
+            <select name="doctorId" defaultValue={HOSPITAL_DOCTOR_SENTINEL}>
               {doctorOptions(doctors).map((opt) => (
                 <option key={opt.key} value={opt.value}>
                   {opt.label}

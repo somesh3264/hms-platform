@@ -124,7 +124,11 @@ export async function registerPatientAction(formData: FormData): Promise<void> {
     // matching the common front-desk workflow of a walk-in registering and
     // immediately being queued); left blank, this just registers the patient
     // as before, and a visit can still be created later via the search results
-    // above (createVisitAction).
+    // above (createVisitAction). The registration form itself now defaults
+    // this to the primary doctor's "Shivgeet hospital" entry rather than a
+    // blank "no appointment yet" choice (a later, explicitly requested
+    // change -- front desk almost always books a visit anyway), but this
+    // action still accepts a blank doctorId for a patient-only registration.
     const doctorId = optionalString(formData, 'doctorId');
     const visitDate = combineDateAndTime(
       optionalString(formData, 'visitDateOnly'),

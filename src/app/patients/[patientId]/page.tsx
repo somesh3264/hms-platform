@@ -10,7 +10,7 @@ import { StatusBadge } from '@/app/components/StatusBadge';
 // prescriptions, and bills, with links to open any past prescription scan
 // or bill. Open to any authenticated staff role.
 export default async function PatientRecordPage({ params }: { params: { patientId: string } }) {
-  const { hospitalId } = await requireSession();
+  const { hospitalId, role } = await requireSession();
 
   const { patient, visits, otherBills } = await withHospitalContext(hospitalId, (tx) =>
     getPatientHistory(tx, { hospitalId, patientId: params.patientId }),
@@ -34,6 +34,13 @@ export default async function PatientRecordPage({ params }: { params: { patientI
           <dt>Address</dt>
           <dd>{patient.address ?? '—'}</dd>
         </dl>
+        {/* FRONT_DESK owns patient registration/demographics -- editing is
+            scoped to that role (a later, explicitly requested addition),
+            unlike this longitudinal view itself, which stays open to any
+            authenticated role. */}
+        {role === 'FRONT_DESK' && (
+          <Link href={`/front-desk/patients/${patient.id}/edit`}>Edit</Link>
+        )}
       </section>
 
       <section>

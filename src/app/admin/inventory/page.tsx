@@ -1,4 +1,4 @@
-import { listMedicines } from '@/inventory';
+import { listMedicines, searchMedicines } from '@/inventory';
 import { requireSession, withHospitalContext } from '@/shared';
 
 import { FlashMessage } from '@/app/components/FlashMessage';
@@ -18,15 +18,22 @@ import { adjustMedicineStockAction } from './actions';
 export default async function AdminInventoryPage({
   searchParams,
 }: {
-  searchParams: { success?: string; error?: string; sid?: string };
+  searchParams: { medQuery?: string; success?: string; error?: string; sid?: string };
 }) {
   const { hospitalId } = await requireSession(['HOSPITAL_ADMIN']);
+  const medQuery = searchParams.medQuery?.trim() ?? '';
 
   // includeInactive: true, same reasoning as the pharmacist's own inventory
   // screen -- a deactivated medicine can still have a real physical count
-  // that needs correcting.
+  // that needs correcting. Same medQuery-driven search/full-list split as
+  // the pharmacy dispense screens (searchMedicines already does a
+  // case-insensitive partial/substring match on name) -- there's no
+  // client-side JS anywhere in this app (see CLAUDE.md), so results update
+  // on search submit, not live as the admin types.
   const medicines = await withHospitalContext(hospitalId, (tx) =>
-    listMedicines(tx, hospitalId, { includeInactive: true }),
+    medQuery
+      ? searchMedicines(tx, { hospitalId, query: medQuery, includeInactive: true })
+      : listMedicines(tx, hospitalId, { includeInactive: true }),
   );
 
   return (
@@ -39,6 +46,16 @@ export default async function AdminInventoryPage({
       </p>
 
       <FlashMessage success={searchParams.success} error={searchParams.error} />
+
+      <form method="get">
+        <input
+          type="text"
+          name="medQuery"
+          defaultValue={medQuery}
+          placeholder="Search medicines by name"
+        />
+        <button type="submit">Search</button>
+      </form>
 
       <section>
         <table>
@@ -53,7 +70,9 @@ export default async function AdminInventoryPage({
           <tbody>
             {medicines.length === 0 && (
               <tr>
-                <td colSpan={4}>No medicines in inventory.</td>
+                <td colSpan={4}>
+                  {medQuery ? 'No matching medicines.' : 'No medicines in inventory.'}
+                </td>
               </tr>
             )}
             {medicines.map((medicine) => (
@@ -70,6 +89,7 @@ export default async function AdminInventoryPage({
                     className="inline-fields"
                   >
                     <input type="hidden" name="medicineId" value={medicine.id} />
+                    <input type="hidden" name="medQuery" value={medQuery} />
                     <input type="number" name="quantity" min={0} step="1" required />
                     <input type="text" name="reason" placeholder="Reason" required />
                     <button type="submit">Correct</button>

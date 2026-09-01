@@ -10,6 +10,10 @@ function optionalString(formData: FormData, key: string): string | undefined {
 
 export async function adjustMedicineStockAction(formData: FormData): Promise<void> {
   const { hospitalId, actorId } = await requireSession(['HOSPITAL_ADMIN']);
+  const medQuery = optionalString(formData, 'medQuery');
+  const path = medQuery
+    ? `/admin/inventory?medQuery=${encodeURIComponent(medQuery)}`
+    : '/admin/inventory';
 
   try {
     const medicineId = optionalString(formData, 'medicineId');
@@ -29,10 +33,10 @@ export async function adjustMedicineStockAction(formData: FormData): Promise<voi
       adjustMedicineStock(tx, { hospitalId, actorId, medicineId, quantity, reason }),
     );
   } catch (err) {
-    redirectWithFlash('/admin/inventory', {
+    redirectWithFlash(path, {
       error: err instanceof Error ? err.message : 'Failed to adjust stock.',
     });
   }
 
-  redirectWithFlash('/admin/inventory', { success: 'Stock corrected.' });
+  redirectWithFlash(path, { success: 'Stock corrected.' });
 }

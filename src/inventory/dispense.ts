@@ -78,6 +78,76 @@ export async function dispenseItem(
   return lineItem;
 }
 
+export interface RemoveDispensedItemInput {
+  hospitalId: string;
+  actorId: string;
+  prescriptionId: string;
+  billLineItemId: string;
+}
+
+// Undoes a single dispensed line item (a later, explicitly requested
+// addition -- there was previously no way to correct a wrong medicine or
+// quantity picked by mistake short of a raw SQL fix). Restores stock via
+// the mirror image of dispenseItem's own atomic decrement, then deletes
+// the line item. Deliberately not gated on is_active -- the physical stock
+// count being restored is real regardless of whether the medicine has
+// since been deactivated for future dispensing.
+//
+// Gated on the prescription still being UPLOADED and the line item still
+// unbilled (billId null), matching dispenseItem's own precondition -- in
+// practice these two are never actually independent: a prescription only
+// reaches DISPENSED via finalizeDispensing, and billId is only ever set
+// later by createBill, by which point the dispense screen's own UPLOADED
+// gate has already hidden every editable control on that page (see
+// src/app/pharmacy/[prescriptionId]/page.tsx). Checked directly anyway
+// rather than trusting the UI gate, same defense-in-depth as every other
+// transition function here.
+export async function removeDispensedItem(
+  tx: Prisma.TransactionClient,
+  input: RemoveDispensedItemInput,
+): Promise<void> {
+  const prescription = await tx.prescription.findFirst({
+    where: { id: input.prescriptionId, hospitalId: input.hospitalId, status: 'UPLOADED' },
+    select: { id: true },
+  });
+  if (!prescription) {
+    throw new Error(`Prescription not found or not editable: ${input.prescriptionId}`);
+  }
+
+  const lineItem = await tx.billLineItem.findFirst({
+    where: {
+      id: input.billLineItemId,
+      hospitalId: input.hospitalId,
+      prescriptionId: input.prescriptionId,
+      billId: null,
+    },
+  });
+  if (!lineItem) {
+    throw new Error(`Dispensed item not found or already billed: ${input.billLineItemId}`);
+  }
+
+  await tx.$executeRaw`
+    UPDATE medicines
+    SET stock_quantity = stock_quantity + ${lineItem.quantity}
+    WHERE id = ${lineItem.medicineId} AND hospital_id = ${input.hospitalId}
+  `;
+
+  await tx.billLineItem.delete({ where: { id: lineItem.id } });
+
+  await recordAuditLog(tx, {
+    hospitalId: input.hospitalId,
+    actorId: input.actorId,
+    action: 'PRESCRIPTION_ITEM_DISPENSE_REMOVED',
+    entityType: 'Prescription',
+    entityId: input.prescriptionId,
+    metadata: {
+      medicineId: lineItem.medicineId,
+      quantity: lineItem.quantity,
+      billLineItemId: lineItem.id,
+    },
+  });
+}
+
 // Closes out a prescription once all needed medicines have been dispensed
 // (FR-6.10), requiring at least one dispensed item -- mirrors
 // completeConsultation's "requires a Prescription to exist" gate one level

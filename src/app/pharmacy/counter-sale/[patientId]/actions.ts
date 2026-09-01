@@ -3,7 +3,7 @@
 import type { PaymentMethod } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 
-import { addCounterSaleItem, finalizeCounterSale } from '@/billing';
+import { addCounterSaleItem, finalizeCounterSale, removeCounterSaleItem } from '@/billing';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 
 function optionalString(formData: FormData, key: string): string | undefined {
@@ -36,6 +36,34 @@ export async function dispenseCounterSaleItemAction(formData: FormData): Promise
   revalidatePath('/pharmacy/inventory');
   revalidatePath('/doctor');
   redirectWithFlash(path, { success: 'Medicine dispensed.' });
+}
+
+// Undoes a mis-picked medicine or quantity from "Dispensed so far" (see
+// removeCounterSaleItem) -- one click, no confirmation, same shape as
+// dispenseCounterSaleItemAction above.
+export async function removeCounterSaleItemAction(formData: FormData): Promise<void> {
+  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
+  const patientId = String(formData.get('patientId') ?? '');
+  const path = patientId ? `/pharmacy/counter-sale/${patientId}` : '/pharmacy/counter-sale';
+
+  try {
+    const billId = String(formData.get('billId') ?? '');
+    const billLineItemId = String(formData.get('billLineItemId') ?? '');
+    if (!billId || !billLineItemId) {
+      throw new Error('Missing billId or billLineItemId.');
+    }
+    await withHospitalContext(hospitalId, (tx) =>
+      removeCounterSaleItem(tx, { hospitalId, actorId, billId, billLineItemId }),
+    );
+  } catch (err) {
+    redirectWithFlash(path, {
+      error: err instanceof Error ? err.message : 'Failed to remove dispensed item.',
+    });
+  }
+
+  revalidatePath('/pharmacy/inventory');
+  revalidatePath('/doctor');
+  redirectWithFlash(path, { success: 'Dispensed item removed and stock restored.' });
 }
 
 export async function finalizeCounterSaleAction(formData: FormData): Promise<void> {

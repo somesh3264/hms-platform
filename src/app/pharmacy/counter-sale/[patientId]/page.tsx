@@ -5,7 +5,11 @@ import { prisma, requireSession, withHospitalContext } from '@/shared';
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { UpiQrCode } from '@/app/components/UpiQrCode';
 
-import { dispenseCounterSaleItemAction, finalizeCounterSaleAction } from './actions';
+import {
+  dispenseCounterSaleItemAction,
+  finalizeCounterSaleAction,
+  removeCounterSaleItemAction,
+} from './actions';
 
 // Mirrors the prescription dispense screen (src/app/pharmacy/[prescriptionId]/
 // page.tsx) exactly -- a later, explicitly requested consistency fix.
@@ -71,6 +75,7 @@ export default async function CounterSalePatientPage({
                 <th>Medicine</th>
                 <th>Quantity</th>
                 <th>Unit price</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -79,6 +84,14 @@ export default async function CounterSalePatientPage({
                   <td>{item.description}</td>
                   <td>{item.quantity}</td>
                   <td>₹{(item.unitPriceCents / 100).toFixed(2)}</td>
+                  <td>
+                    <form action={removeCounterSaleItemAction}>
+                      <input type="hidden" name="patientId" value={patient.id} />
+                      <input type="hidden" name="billId" value={openBill.id} />
+                      <input type="hidden" name="billLineItemId" value={item.id} />
+                      <button type="submit">Remove</button>
+                    </form>
+                  </td>
                 </tr>
               ))}
             </tbody>

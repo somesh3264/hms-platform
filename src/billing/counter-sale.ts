@@ -120,6 +120,86 @@ export async function addCounterSaleItem(
   return lineItem;
 }
 
+export interface RemoveCounterSaleItemInput {
+  hospitalId: string;
+  actorId: string;
+  billId: string;
+  billLineItemId: string;
+}
+
+// Undoes a single dispensed item from an in-progress counter sale (a later,
+// explicitly requested addition, mirroring removeDispensedItem in
+// src/inventory/dispense.ts -- see there for the general rationale).
+// Restores stock via the mirror image of addCounterSaleItem's own atomic
+// decrement, then removes the line item and backs its amount out of the
+// bill's running subtotal/total.
+//
+// Counter Sale's Bill exists from the moment the first item is dispensed
+// (unlike the prescription flow, where billing happens later) -- so
+// removing the *last* remaining item would otherwise leave a real
+// billNumber attached to a permanently empty $0 Bill. Deleted outright in
+// that case instead: paymentStatus is still PENDING and nothing else
+// references it yet, so there's nothing to orphan (BillLineItem.billId's
+// own ON DELETE SET NULL never comes into play here since every line item
+// is already gone by the time the Bill itself is deleted).
+export async function removeCounterSaleItem(
+  tx: Prisma.TransactionClient,
+  input: RemoveCounterSaleItemInput,
+): Promise<void> {
+  const bill = await tx.bill.findFirst({
+    where: {
+      id: input.billId,
+      hospitalId: input.hospitalId,
+      visitId: null,
+      paymentStatus: 'PENDING',
+    },
+  });
+  if (!bill) {
+    throw new Error(`Counter sale not found or already finalized: ${input.billId}`);
+  }
+
+  const lineItem = await tx.billLineItem.findFirst({
+    where: { id: input.billLineItemId, hospitalId: input.hospitalId, billId: bill.id },
+  });
+  if (!lineItem) {
+    throw new Error(`Dispensed item not found: ${input.billLineItemId}`);
+  }
+
+  await tx.$executeRaw`
+    UPDATE medicines
+    SET stock_quantity = stock_quantity + ${lineItem.quantity}
+    WHERE id = ${lineItem.medicineId} AND hospital_id = ${input.hospitalId}
+  `;
+
+  await tx.billLineItem.delete({ where: { id: lineItem.id } });
+
+  const remaining = await tx.billLineItem.count({ where: { billId: bill.id } });
+  if (remaining === 0) {
+    await tx.bill.delete({ where: { id: bill.id } });
+  } else {
+    await tx.bill.update({
+      where: { id: bill.id },
+      data: {
+        subtotalCents: { decrement: lineItem.lineTotalCents },
+        totalCents: { decrement: lineItem.lineTotalCents },
+      },
+    });
+  }
+
+  await recordAuditLog(tx, {
+    hospitalId: input.hospitalId,
+    actorId: input.actorId,
+    action: 'COUNTER_SALE_ITEM_REMOVED',
+    entityType: 'Bill',
+    entityId: bill.id,
+    metadata: {
+      medicineId: lineItem.medicineId,
+      quantity: lineItem.quantity,
+      billLineItemId: lineItem.id,
+    },
+  });
+}
+
 export interface FinalizeCounterSaleInput {
   hospitalId: string;
   actorId: string;

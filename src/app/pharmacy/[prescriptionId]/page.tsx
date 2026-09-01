@@ -5,7 +5,7 @@ import { formatISTDateTime, requireSession, withHospitalContext } from '@/shared
 import { FlashMessage } from '@/app/components/FlashMessage';
 import { StatusBadge } from '@/app/components/StatusBadge';
 
-import { dispenseItemAction, finalizeDispensingAction } from './actions';
+import { dispenseItemAction, finalizeDispensingAction, removeDispensedItemAction } from './actions';
 
 export default async function DispensePrescriptionPage({
   params,
@@ -76,6 +76,7 @@ export default async function DispensePrescriptionPage({
                 <th>Medicine</th>
                 <th>Quantity</th>
                 <th>Unit price</th>
+                {prescription.status === 'UPLOADED' && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -84,6 +85,15 @@ export default async function DispensePrescriptionPage({
                   <td>{item.description}</td>
                   <td>{item.quantity}</td>
                   <td>₹{(item.unitPriceCents / 100).toFixed(2)}</td>
+                  {prescription.status === 'UPLOADED' && (
+                    <td>
+                      <form action={removeDispensedItemAction}>
+                        <input type="hidden" name="prescriptionId" value={prescription.id} />
+                        <input type="hidden" name="billLineItemId" value={item.id} />
+                        <button type="submit">Remove</button>
+                      </form>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { dispenseItem, finalizeDispensing } from '@/inventory';
+import { dispenseItem, finalizeDispensing, removeDispensedItem } from '@/inventory';
 import { redirectWithFlash, requireSession, withHospitalContext } from '@/shared';
 
 function optionalString(formData: FormData, key: string): string | undefined {
@@ -33,6 +33,33 @@ export async function dispenseItemAction(formData: FormData): Promise<void> {
   revalidatePath('/pharmacy/inventory');
   revalidatePath('/doctor');
   redirectWithFlash(path, { success: 'Medicine dispensed.' });
+}
+
+// Undoes a mis-picked medicine or quantity from "Dispensed so far" (see
+// removeDispensedItem) -- one click, no confirmation, same shape as
+// dispenseItemAction above.
+export async function removeDispensedItemAction(formData: FormData): Promise<void> {
+  const { hospitalId, actorId } = await requireSession(['PHARMACIST']);
+  const prescriptionId = String(formData.get('prescriptionId') ?? '');
+  const path = prescriptionId ? `/pharmacy/${prescriptionId}` : '/pharmacy';
+
+  try {
+    const billLineItemId = String(formData.get('billLineItemId') ?? '');
+    if (!prescriptionId || !billLineItemId) {
+      throw new Error('Missing prescriptionId or billLineItemId.');
+    }
+    await withHospitalContext(hospitalId, (tx) =>
+      removeDispensedItem(tx, { hospitalId, actorId, prescriptionId, billLineItemId }),
+    );
+  } catch (err) {
+    redirectWithFlash(path, {
+      error: err instanceof Error ? err.message : 'Failed to remove dispensed item.',
+    });
+  }
+
+  revalidatePath('/pharmacy/inventory');
+  revalidatePath('/doctor');
+  redirectWithFlash(path, { success: 'Dispensed item removed and stock restored.' });
 }
 
 // Finalizing dispensing hands the pharmacist straight into billing for the

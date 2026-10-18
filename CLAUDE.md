@@ -974,3 +974,61 @@ real HTTPS too) and any subdomain matching a real, active hospital, reusing
 so this can never approve a hostname `/login` would then reject, or vice
 versa. Verified directly against the dev server: an unknown subdomain gets
 403, the bare root domain and a real hospital's subdomain both get 200.
+
+### Backups (`scripts/backup/`)
+
+**Nightly at 02:30 IST**, `scripts/backup/backup.sh` (cron on the server, as the deploy user) bundles
+the database (`pg_dump` as the admin role, which bypasses row-level security -- a role that did
+not would silently dump only the rows its policies allow; the script refuses to run as one), the
+roles (`pg_dumpall --globals-only --no-role-passwords` -- the RLS policies name them; no password
+hashes), the `hms_uploads` volume (read-only mount) and a manifest of every table's row count and
+the upload file count. The bundle is encrypted with **age** to a public key and uploaded with
+**rclone** to Google Drive (`gdrive:hms-backups`): 30 nightly and 12 monthly copies there, a week
+locally in `backups/`. Read-only towards HMS: nothing is stopped, restarted or changed. Both tools
+run from one pinned image (`scripts/backup/Dockerfile`); nothing is installed on the server.
+Settings live in `.env.backup`, not `.env.production` (which `env_file:` passes whole into the app
+container). Each run logs one line to `backups/backup.log`.
+
+**The private key never touches the server** and is HMS's own -- not shared with any other
+project on the same server, so handing another client their backups never exposes patient data.
+Lose it and every backup is unreadable: keep it in a password manager and one other safe place.
+Retention is provisional until the patient-record retention period (TRD open question 3) is set.
+
+**Set-up (once).** On a machine with Docker, in this repository:
+`docker build -q -t hms-backup scripts/backup && docker run --rm hms-backup age-keygen > ~/hms-backup-key.txt`;
+store that file safely and put its `# public key: age1…` value on the server in
+`~/hms-platform/.env.backup` as `BACKUP_AGE_RECIPIENT=age1…`. Google Drive uses the server's
+rclone remote `gdrive` (`~/.config/rclone`, `drive.file` scope -- it sees only files it uploaded),
+shared with the other backup on this server. Cron (server time is UTC):
+`0 21 * * * cd ~/hms-platform && scripts/backup/backup.sh >> backups/cron.log 2>&1`.
+
+**Restore drill** -- download a backup from Drive (`hms-backups/daily/`), then
+`scripts/backup/restore-drill.sh <hms-….tar.age> ~/hms-backup-key.txt`. It restores into a
+throwaway Postgres 16, compares every table's row count with the manifest exactly, and reads the
+uploads archive end to end; it prints counts only. `scripts/backup/selftest.sh` runs the whole
+chain on synthetic data (RLS-forced tables, an app role, an uploads volume) with no account, and
+proves the drill fails on a backup missing one row.
+
+**Restoring for real** (take a fresh backup of whatever is there first):
+
+```bash
+# decrypt and unpack, on the machine holding the key
+docker run --rm -i -v ~/hms-backup-key.txt:/key:ro hms-backup age -d -i /key < hms-….tar.age > bundle.tar
+mkdir restore && tar -xf bundle.tar -C restore && rm bundle.tar
+scp -r restore sourabh@<server>:~/hms-platform/backups/
+# on the server
+docker compose -f docker-compose.prod.yml --env-file .env.production stop app
+docker exec -i hms-postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' < backups/restore/db.dump
+docker run --rm -i -v hms-platform_hms_uploads:/u hms-backup sh -c 'tar -xf - -C /u' < backups/restore/uploads.tar
+docker compose -f docker-compose.prod.yml --env-file .env.production start app
+rm -rf backups/restore
+```
+
+The uploads step puts back every file in the backup, overwriting damaged copies; files added after
+the backup are left in place. Tried on a synthetic copy: the database returned to the backup's rows
+with row-level security and its policies intact, and a damaged scan was restored.
+
+On a rebuilt server, apply `globals.sql` first (`docker exec -i hms-postgres psql -U <admin> -d <db> < globals.sql`)
+and set `hms_app`'s password again as described above, since backups carry no password hashes.
+Delete the unpacked `restore/` folder everywhere afterwards: it is the unencrypted data.
+

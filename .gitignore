@@ -28,3 +28,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts.bak
+
+# backups (scripts/backup/): settings and local encrypted copies
+.env.backup
+/backups/

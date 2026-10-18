@@ -69,8 +69,19 @@ services:
       ROOT_DOMAIN: ${ROOT_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Site files of other apps on this server (caddy-sites/README.md).
+      - ./caddy-sites:/etc/caddy/sites:ro
       - hms_caddy_data:/data
       - hms_caddy_config:/config
+    # `default` reaches this stack's app; `shared-proxy` reaches other apps on the server, so Caddy
+    # can serve them too. Create it once on a new server: docker network create shared-proxy
+    networks:
+      - default
+      - shared-proxy
+
+networks:
+  shared-proxy:
+    external: true
 
 volumes:
   hms_postgres_data:

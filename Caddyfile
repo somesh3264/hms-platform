@@ -32,3 +32,8 @@
 
 	reverse_proxy app:3000
 }
+
+# Other apps sharing this server's ports 80 and 443 each add one file to caddy-sites/ (mounted
+# here). Those files stay out of this repository on purpose -- see caddy-sites/README.md. An
+# empty folder is fine.
+import /etc/caddy/sites/*.caddy

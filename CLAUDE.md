@@ -975,6 +975,13 @@ so this can never approve a hostname `/login` would then reject, or vice
 versa. Verified directly against the dev server: an unknown subdomain gets
 403, the bare root domain and a real hospital's subdomain both get 200.
 
+**Other apps on the same server** are served through this stack's Caddy, without HMS's code
+naming them: the `Caddyfile` ends with `import /etc/caddy/sites/*.caddy`, `caddy-sites/` is
+mounted there read-only and git-ignored apart from its README, and Caddy also joins the external
+`shared-proxy` network those apps are on (create it once on a new server: `docker network create
+shared-proxy`, or `up` refuses to start). An empty `caddy-sites/` is valid. A broken file there
+stops Caddy from loading, so `caddy validate` before any reload -- see `caddy-sites/README.md`.
+
 ### Backups (`scripts/backup/`)
 
 **Nightly at 02:30 IST**, `scripts/backup/backup.sh` (cron on the server, as the deploy user) bundles

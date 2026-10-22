@@ -11,7 +11,7 @@
 #   BACKUP_LOCAL_DAYS        encrypted copies kept on the server, default 7
 #   HMS_DB_CONTAINER         default hms-postgres
 #   HMS_UPLOADS_VOLUME       default hms-platform_hms_uploads
-set -euo pipefail
+set -Eeuo pipefail   # -E: a failure inside a function (rclone, psql_db) still reaches the ERR trap
 umask 077
 
 cd "$(dirname "$0")/../.."
@@ -45,6 +45,11 @@ psql_db() { docker exec -i "$DB" sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_D
 
 docker image inspect "$IMAGE" >/dev/null 2>&1 || docker build -q -t "$IMAGE" scripts/backup >/dev/null
 
+# 0. Before any work, prove the upload can happen. Fails loudly, by name, rather than after the dump.
+CONF="$RCLONE_CONFIG_DIR/rclone.conf"
+[ ! -e "$CONF" ] || [ -r "$CONF" ] || fail "cannot read $CONF (owner $(stat -c %U "$CONF" 2>/dev/null || echo '?')); it must belong to $(id -un)"
+{ rclone mkdir "$REMOTE/daily" && rclone mkdir "$REMOTE/monthly"; } || fail "cannot reach $REMOTE — check the Google sign-in (DEPLOY.md Backups)"
+
 # 1. The database. Dumped as the admin role, which bypasses row-level security — a role that did
 #    not would silently dump only the rows its policies allow.
 [ "$(echo "select rolsuper or rolbypassrls from pg_roles where rolname = current_user" | psql_db)" = "t" ] \
@@ -70,8 +75,6 @@ tar -cf "$WORK/bundle.tar" -C "$WORK" manifest.json globals.sql db.dump uploads.
 docker run --rm -i "$IMAGE" age -r "$BACKUP_AGE_RECIPIENT" < "$WORK/bundle.tar" > "$DIR/$NAME"
 
 # 6. Upload: every night to daily/, on the 1st of the month to monthly/ too.
-rclone mkdir "$REMOTE/daily"
-rclone mkdir "$REMOTE/monthly"
 rclone copyto "/data/$NAME" "$REMOTE/daily/$NAME"
 if [ "$(TZ=Asia/Kolkata date +%d)" = "01" ]; then rclone copyto "/data/$NAME" "$REMOTE/monthly/$NAME"; fi
 

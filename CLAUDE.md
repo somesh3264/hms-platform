@@ -1008,6 +1008,17 @@ store that file safely and put its `# public key: age1…` value on the server i
 rclone remote `gdrive` (`~/.config/rclone`, `drive.file` scope -- it sees only files it uploaded),
 shared with the other backup on this server. Cron (server time is UTC):
 `0 21 * * * cd ~/hms-platform && scripts/backup/backup.sh >> backups/cron.log 2>&1`.
+For an email when a night is missed, put a healthchecks.io ping URL (period 1 day, grace 2 hours)
+in `.env.backup` as `BACKUP_HEALTHCHECK_URL`.
+
+**When a backup fails**, `backups/backup.log` has a `FAILED:` line saying why (the script runs with
+`set -E`, so a failure inside its helper functions is logged too) and `backups/cron.log` the full
+output. Google Drive is checked before anything is dumped. `cannot read …/rclone.conf` means the
+file is no longer the deploy user's: rclone rewrites it on every sign-in refresh, so an rclone
+container run without `-u "$(id -u):$(id -g)"` hands it to root (this stopped uploads for four
+nights in October 2026). Fix:
+`docker run --rm --entrypoint chown -v ~/.config/rclone:/c rclone/rclone:1.71 "$(id -u):$(id -g)" /c/rclone.conf`,
+then run `scripts/backup/backup.sh` by hand and upload any copies in `backups/` that missed Drive.
 
 **Restore drill** -- download a backup from Drive (`hms-backups/daily/`), then
 `scripts/backup/restore-drill.sh <hms-….tar.age> ~/hms-backup-key.txt`. It restores into a
